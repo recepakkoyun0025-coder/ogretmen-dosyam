@@ -30,7 +30,11 @@ const IC = {
 const icon = (k, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k] || ''}</svg>`;
 
 /* ===================== Sabit içerik ===================== */
-const P0 = { ad:'Recep AKKOYUN', hitap:'Recep Bey', brans:'Türkçe', okul:'Sultan Çiftliği Ortaokulu', ilce:'Çekmeköy', il:'İstanbul', mudur:'Özen TARI', rehberSinif:'6A', yil:'2026-2027' };
+const P0 = { ad:'', hitap:'', brans:'', okul:'', ilce:'', il:'', mudur:'', rehberSinif:'', yil:'2026-2027' };
+const BRANSLAR = ['Türkçe','Matematik','Fen Bilimleri','Sosyal Bilgiler','İngilizce','Din Kültürü ve Ahlak Bilgisi','Görsel Sanatlar','Müzik','Beden Eğitimi ve Spor','Bilişim Teknolojileri ve Yazılım','Teknoloji ve Tasarım','T.C. İnkılap Tarihi ve Atatürkçülük','Arapça','Rehberlik ve Psikolojik Danışmanlık','Özel Eğitim','Sınıf Öğretmenliği'];
+const rehberKlasor = () => klasorler().find(k => /^Rehberlik/.test(k)) || 'Rehberlik (6A)';
+const rsAd = () => prof().rehberSinif || 'rehber sınıfınız';
+const isTurkce = () => /türkçe/i.test(prof().brans || '');
 const KLASOR0 = ['Kişisel Belgeler','Yıllık Planlar','Ders Planları','Zümre Tutanakları','Şube Öğretmenler Kurulu','Veli Toplantıları','Rehberlik (6A)','Sınav ve Değerlendirme','Öğrenci Çalışmaları','Fotoğraflar','Resmî Yazılar','Mevzuat','Genel'];
 const KATEGORI = ['Zümre','Şube Öğretmenler Kurulu','Veli','Rehberlik','Plan','Tutanak','Dilekçe','Diğer'];
 
@@ -217,11 +221,8 @@ const kaynaklar = () => Store.list('kaynak');
 const klasorler = () => ayar().klasorler || KLASOR0;
 const sinifAd = id => (Store.get(id) || {}).ad || '—';
 
-function seedIfEmpty() {
-  if (Store.items.size) return;
-  Store.put('ayar', { type:'ayar', profil:P0, klasorler:KLASOR0 }, true);
-  Store.put('sinif_6a', { type:'sinif', ad:'6A', rehber:true, ogr:[], tarih:Date.now() }, true);
-}
+function seedIfEmpty() { /* İlk açılışta kurulum ekranı gösterilir (PAGES.kurulum). */ }
+const needsSetup = () => S.ready && !Store.get('ayar');
 
 /* ===================== Kabuk ===================== */
 const NAV = [['pano','Ana Sayfa'],['siniflar','Sınıflar'],['cizelgeler','Çizelgeler'],['evraklar','Evraklar'],['dosyalar','Dosyalar'],['mevzuat','Mevzuat'],['mufettis','Müfettiş Dosyası']];
@@ -244,7 +245,8 @@ function markNav() {
 }
 function go(page, pid = null) { if (S.page === 'evrak') evFlush(); S.page = page; S.pid = pid; S.edit = null; render(); window.scrollTo(0, 0); }
 function render() {
-  const fn = PAGES[S.page] || PAGES.pano;
+  const fn = needsSetup() ? PAGES.kurulum : (PAGES[S.page] || PAGES.pano);
+  document.body.classList.toggle('setup', needsSetup());
   $('#view').innerHTML = `<div class="wrap">${fn()}</div>`;
   markNav();
 }
@@ -261,6 +263,28 @@ function installCard() {
 /* ===================== Sayfalar ===================== */
 const PAGES = {};
 
+PAGES.kurulum = () => `
+  <section class="hero">
+    <div class="eyebrow">Hoş geldiniz</div>
+    <h1>Öğretmen Dosyam</h1>
+    <p class="meta">Sınıf listeleri, değerlendirme çizelgeleri, hazır tutanaklar, dosya arşivi ve mevzuat tek yerde. Bilgileriniz yalnızca bu cihazda saklanır, kimseyle paylaşılmaz. Bir kez doldurun; tüm tutanak ve formlara otomatik yazılır.</p>
+  </section>
+  <section class="card">
+    <h2>Bilgileriniz</h2>
+    <div class="fgrid" style="margin-top:6px">
+      <div class="field"><label for="ku-ad">Adınız soyadınız *</label><input class="inp" id="ku-ad" placeholder="ör. Ayşe YILMAZ" autocomplete="name"></div>
+      <div class="field"><label for="ku-brans">Branşınız *</label><input class="inp" id="ku-brans" list="ku-branslar" placeholder="ör. Türkçe"><datalist id="ku-branslar">${BRANSLAR.map(b => `<option value="${esc(b)}">`).join('')}</datalist></div>
+      <div class="field"><label for="ku-okul">Okulunuz *</label><input class="inp" id="ku-okul" placeholder="ör. Atatürk Ortaokulu"></div>
+      <div class="field"><label for="ku-ilce">İlçe</label><input class="inp" id="ku-ilce" placeholder="ör. Çekmeköy"></div>
+      <div class="field"><label for="ku-il">İl</label><input class="inp" id="ku-il" placeholder="ör. İstanbul"></div>
+      <div class="field"><label for="ku-mudur">Okul müdürünün adı soyadı</label><input class="inp" id="ku-mudur"></div>
+      <div class="field"><label for="ku-rehber">Rehber öğretmeni olduğunuz sınıf</label><input class="inp" id="ku-rehber" placeholder="ör. 6A (yoksa boş bırakın)"></div>
+      <div class="field"><label for="ku-hitap">Size nasıl hitap edelim?</label><input class="inp" id="ku-hitap" placeholder="ör. Ayşe Hanım"></div>
+    </div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" data-act="kurulum-kaydet">Başla</button><label class="btn" for="yedek-file">${icon('up')}Yedekten geri yükle</label><input type="file" id="yedek-file" data-in="yedek-file" accept=".json,application/json" hidden></div>
+    <p class="note" style="margin-top:10px">Başka bir cihazda kullandıysanız oradan aldığınız yedeği "Yedekten geri yükle" ile açabilirsiniz. Bilgilerinizi sonradan Profil bölümünden değiştirebilirsiniz.</p>
+  </section>`;
+
 PAGES.pano = () => {
   const p = prof(), h = okulHaftasi(), now = new Date();
   const saat = now.getHours(); const selam = saat < 11 ? 'Günaydın' : saat < 18 ? 'İyi günler' : 'İyi akşamlar';
@@ -273,7 +297,7 @@ PAGES.pano = () => {
   <section class="hero">
     <div class="eyebrow">${esc(p.yil)} Eğitim-Öğretim Yılı${h ? ` · ${h.tatil ? 'Tatil haftası' : `${h.donem}. dönem · ders yılının ${h.w}. haftası`}` : ''}</div>
     <h1>${selam}, ${esc(p.hitap)}</h1>
-    <p class="meta">${esc(p.okul)} · ${esc(p.brans)} Öğretmeni${p.rehberSinif ? ` · ${esc(p.rehberSinif)} Sınıf Rehber Öğretmeni` : ''} · Okul Müdürü ${esc(p.mudur)}</p>
+    <p class="meta">${esc(p.okul)} · ${esc(p.brans)} Öğretmeni${p.rehberSinif ? ` · ${esc(p.rehberSinif)} Sınıf Rehber Öğretmeni` : ''}${p.mudur ? ' · Okul Müdürü ' + esc(p.mudur) : ''}</p>
     <div class="row">
       <button class="btn primary" data-act="imp-open">${icon('up')}Sınıf listesi yükle</button>
       <button class="btn" data-act="cz-new">${icon('plus')}Yeni çizelge</button>
@@ -311,14 +335,14 @@ function kontrolListesi() {
   const hasF = k => dz.some(f => f.klasor === k);
   return [
     { ad:'Sınıf listeleri yüklendi', ok:siniflar().some(s => (s.ogr || []).length), ipucu:'Excel veya Word listesinden otomatik', act:'imp-open' },
-    { ad:'Türkçe yıllık planı', ok:hasEv('Plan', /yıllık/i) || hasF('Yıllık Planlar'), ipucu:'Dosyalar › Yıllık Planlar klasörüne yükleyin', act:'up-open', arg:'Yıllık Planlar' },
+    { ad:(prof().brans || 'Ders') + ' yıllık planı', ok:hasEv('Plan', /yıllık/i) || hasF('Yıllık Planlar'), ipucu:'Dosyalar › Yıllık Planlar klasörüne yükleyin', act:'up-open', arg:'Yıllık Planlar' },
     { ad:'Zümre toplantı tutanağı', ok:hasEv('Zümre') || hasF('Zümre Tutanakları'), ipucu:'Dönem başı ve dönem sonu', act:'ev-new', arg:'zumre_bas' },
-    { ad:'Şube öğretmenler kurulu tutanağı', ok:hasEv('Şube Öğretmenler Kurulu') || hasF('Şube Öğretmenler Kurulu'), ipucu:'6A rehber öğretmeni olarak', act:'ev-new', arg:'sok' },
+    { ad:'Şube öğretmenler kurulu tutanağı', ok:hasEv('Şube Öğretmenler Kurulu') || hasF('Şube Öğretmenler Kurulu'), ipucu:rsAd() + ' rehber öğretmeni olarak', act:'ev-new', arg:'sok' },
     { ad:'Veli toplantısı tutanağı ve katılım listesi', ok:hasEv('Veli', /toplant/i) || hasF('Veli Toplantıları'), ipucu:'Öğrenci adları listeye otomatik gelir', act:'ev-new', arg:'veli' },
-    { ad:'Sınıf rehberlik planı', ok:hasEv('Rehberlik') || hasF('Rehberlik (6A)'), ipucu:'Aylık rehberlik etkinlikleri', act:'ev-new', arg:'rehberlik' },
+    { ad:'Sınıf rehberlik planı', ok:hasEv('Rehberlik') || hasF(rehberKlasor()), ipucu:'Aylık rehberlik etkinlikleri', act:'ev-new', arg:'rehberlik' },
     { ad:'Ders planı (Maarif Modeli)', ok:hasEv('Plan', /ders planı/i) || hasF('Ders Planları'), ipucu:'Tema ve öğrenme çıktılarıyla', act:'ev-new', arg:'dersplani' },
     { ad:'Değerlendirme çizelgeleri', ok:cizelgeler().length > 0, ipucu:'Ödev, okuma, konuşma, defter kontrol…', act:'cz-new' },
-    { ad:'Sınıf başkanı seçim tutanağı', ok:hasEv(null, /başkan/i), ipucu:'6A için', act:'ev-new', arg:'baskan' }
+    { ad:'Sınıf başkanı seçim tutanağı', ok:hasEv(null, /başkan/i), ipucu:rsAd() + ' için', act:'ev-new', arg:'baskan' }
   ];
 }
 
@@ -511,6 +535,7 @@ PAGES.mevzuat = () => {
   } else if (S.mvTab === 'maarif') {
     body = `<section class="card"><h2>Türkiye Yüzyılı Maarif Modeli · Türkçe Dersi Öğretim Programı</h2>
       <p class="muted" style="margin-bottom:14px">Ortaokul 5–8. sınıflar. Haftalık ders saati 5. ve 6. sınıflarda 6 saattir.</p>
+      ${isTurkce() ? '' : `<div class="banner" style="margin-bottom:14px">Bu bölüm Türkçe dersi içindir. ${esc(prof().brans)} öğretim programınız için <a href="https://tymm.meb.gov.tr/ogretim-programlari" target="_blank" rel="noopener">tüm Maarif Modeli programları ↗</a></div>`}
       <h3>6. sınıf temaları</h3><div class="themes" style="margin-bottom:16px">${TEMALAR[6].map((t, i) => `<div><small>TEMA ${i + 1}</small>${esc(t)}</div>`).join('')}</div>
       <h3>5. sınıf temaları</h3><div class="themes" style="margin-bottom:16px">${TEMALAR[5].map((t, i) => `<div><small>TEMA ${i + 1}</small>${esc(t)}</div>`).join('')}</div>
       <div class="grid g2">
@@ -548,10 +573,10 @@ PAGES.mufettis = () => {
   return `<div class="pagehead"><div><h1>Müfettiş Dosyası</h1><p>Dosyanızın tamamı tek sayfada, içindekiler sırasıyla. Her satır ilgili belgeyi açar. Tamamını tek dosya olarak indirip yazdırabilirsiniz.</p></div>
     <div class="row"><button class="btn primary" data-act="mf-print">Tümünü yazdır / PDF</button><button class="btn" data-act="mf-dl">${icon('down')}Tüm dosyayı indir</button></div></div>
   <div class="dossier">
-    <div class="cover"><div class="tc">T.C.<br>${esc(up(p.ilce))} KAYMAKAMLIĞI<br>${esc(up(p.okul))} MÜDÜRLÜĞÜ</div>
+    <div class="cover"><div class="tc">T.C.<br>${esc(makam(p))}<br>${esc(up(p.okul))} MÜDÜRLÜĞÜ</div>
       <h1>${esc(p.yil)} Eğitim-Öğretim Yılı<br>Öğretmen Dosyası</h1>
       <div style="font-size:17px"><b>${esc(p.ad)}</b> · ${esc(p.brans)} Öğretmeni</div>
-      <div class="muted">${p.rehberSinif ? esc(p.rehberSinif) + ' Sınıf Rehber Öğretmeni · ' : ''}Okul Müdürü: ${esc(p.mudur)}</div></div>
+      <div class="muted">${p.rehberSinif ? esc(p.rehberSinif) + ' Sınıf Rehber Öğretmeni' : ''}${p.rehberSinif && p.mudur ? ' · ' : ''}${p.mudur ? 'Okul Müdürü: ' + esc(p.mudur) : ''}</div></div>
     <div class="toc">
       ${sec('Millî metinler', `<button data-act="mv-go" data-k="metin"><span>İstiklal Marşı</span><small>10 kıta</small></button><button data-act="mv-go" data-k="metin"><span>Atatürk'ün Gençliğe Hitabesi</span><small>1927</small></button>`)}
       ${sec('Öğretmen bilgileri ve çalışma takvimi', `<button data-act="profil"><span>Kimlik ve görev bilgileri</span><small>${esc(p.okul)}</small></button><button data-act="mv-go" data-k="takvim"><span>2026-2027 çalışma takvimi</span><small>MEB</small></button>`)}
@@ -560,19 +585,20 @@ PAGES.mufettis = () => {
       ${sec('Zümre öğretmenler toplantı tutanakları', evBy('Zümre').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Zümre Tutanakları').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Şube öğretmenler kurulu tutanakları', evBy('Şube Öğretmenler Kurulu').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Şube Öğretmenler Kurulu').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Veli toplantıları ve görüşmeler', evBy('Veli').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Veli Toplantıları').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
-      ${sec('Sınıf rehberliği', evBy('Rehberlik').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Rehberlik (6A)').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
+      ${sec('Sınıf rehberliği', evBy('Rehberlik').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === rehberKlasor()).map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Ölçme-değerlendirme çizelgeleri', cz.map(c => it('open-cizelge', c.id, c.ad, sinifAd(c.sinifId))).join(''))}
       ${sec('Diğer tutanak ve yazışmalar', [...evBy('Tutanak'), ...evBy('Dilekçe'), ...evBy('Diğer')].map(e => it('open-evrak', e.id, e.baslik, e.kategori)).join(''))}
-      ${sec('Yüklenen belgeler ve fotoğraflar', kl.filter(k => !['Yıllık Planlar','Ders Planları','Zümre Tutanakları','Şube Öğretmenler Kurulu','Veli Toplantıları','Rehberlik (6A)'].includes(k)).map(k => `<div style="padding:6px 0 2px 28px" class="eyebrow">${esc(k)}</div>` + dz.filter(f => f.klasor === k).map(f => it('dz-open', f.id, f.ad, fmtSize(f.boyut || 0))).join('')).join(''))}
+      ${sec('Yüklenen belgeler ve fotoğraflar', kl.filter(k => !['Yıllık Planlar','Ders Planları','Zümre Tutanakları','Şube Öğretmenler Kurulu','Veli Toplantıları',rehberKlasor()].includes(k)).map(k => `<div style="padding:6px 0 2px 28px" class="eyebrow">${esc(k)}</div>` + dz.filter(f => f.klasor === k).map(f => it('dz-open', f.id, f.ad, fmtSize(f.boyut || 0))).join('')).join(''))}
       ${sec('Mevzuat', `<button data-act="mv-go" data-k="kanun"><span>Kanunlar</span><small>${MEVZUAT.filter(l => l.g === 'Kanun').length} kanun</small></button><button data-act="mv-go" data-k="yonetmelik"><span>Yönetmelikler</span><small>${MEVZUAT.filter(l => l.g === 'Yönetmelik').length} yönetmelik</small></button><button data-act="mv-go" data-k="maarif"><span>Türkiye Yüzyılı Maarif Modeli · Türkçe programı</span><small>tymm.meb.gov.tr</small></button>`)}
     </div>
   </div>`;
 };
 
 /* ===================== Evrak şablonları ===================== */
-function baslik(p) { return `<p style="text-align:center"><b>T.C.<br>${esc(up(p.ilce))} KAYMAKAMLIĞI<br>${esc(up(p.okul))} MÜDÜRLÜĞÜ</b></p>`; }
+function makam(p) { return p.ilce ? up(p.ilce) + ' KAYMAKAMLIĞI' : p.il ? up(p.il) + ' VALİLİĞİ' : '… KAYMAKAMLIĞI'; }
+function baslik(p) { return `<p style="text-align:center"><b>T.C.<br>${esc(makam(p))}<br>${esc(up(p.okul))} MÜDÜRLÜĞÜ</b></p>`; }
 function imzaTablo(cells) { return `<table class="imza"><tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr></table>`; }
-function onay(p) { return `<p style="text-align:center"><br>UYGUNDUR<br>…/…/20…<br><br><br>${esc(p.mudur)}<br>Okul Müdürü</p>`; }
+function onay(p) { return `<p style="text-align:center"><br>UYGUNDUR<br>…/…/20…<br><br><br>${esc(p.mudur || '…')}<br>Okul Müdürü</p>`; }
 const sinifKisa = ad => String(ad || '').replace(/^(\d+)\s*[\/\-]?\s*([A-Za-zÇĞİÖŞÜçğıöşü])$/, '$1/$2');
 function rehberSinif() { const s = siniflar().find(x => x.rehber) || siniflar()[0]; return s || null; }
 function gundem(items) { return `<ol>${items.map(i => `<li>${esc(i)}</li>`).join('')}</ol>`; }
@@ -610,18 +636,18 @@ const EV_TPL = [
     <table><tr><th style="width:90px">Ay</th><th style="width:60px">Hafta</th><th>Kazanım / Etkinlik</th><th>Açıklama</th></tr>${ay.map(([a, k]) => `<tr><td>${a}</td><td></td><td>${esc(k)}</td><td></td></tr>`).join('')}</table>
     <p><i>Not: Haftalık kazanımları okul rehberlik servisinin paylaştığı sınıf rehberlik programına göre düzenleyiniz.</i></p>
     ${imzaTablo([`${esc(p.ad)}<br>${esc(sa)} Sınıf Rehber Öğretmeni`, '…<br>Rehber Öğretmen (PDR)'])}${onay(p)}`; } },
-  { k:'dersplani', kat:'Plan', ad:'Ders Planı (Maarif Modeli)', not:'Tema, öğrenme çıktıları, beceriler, farklılaştırma.', f:(p) => `${baslik(p)}<h2 style="text-align:center">TÜRKÇE DERSİ DERS PLANI</h2>
-    <table><tr><th>Ders</th><td>${esc(p.brans)}</td><th>Sınıf</th><td>6</td></tr><tr><th>Tema</th><td>…</td><th>Süre</th><td>… ders saati</td></tr><tr><th>Metin</th><td colspan="3">…</td></tr>
+  { k:'dersplani', kat:'Plan', ad:'Ders Planı (Maarif Modeli)', not:'Tema, öğrenme çıktıları, beceriler, farklılaştırma.', f:(p) => `${baslik(p)}<h2 style="text-align:center">${esc(up(p.brans))} DERSİ DERS PLANI</h2>
+    <table><tr><th>Ders</th><td>${esc(p.brans)}</td><th>Sınıf</th><td>…</td></tr><tr><th>Tema</th><td>…</td><th>Süre</th><td>… ders saati</td></tr><tr><th>Metin</th><td colspan="3">…</td></tr>
     <tr><th>Öğrenme çıktıları ve süreç bileşenleri</th><td colspan="3">…</td></tr><tr><th>Alan becerileri</th><td colspan="3">…</td></tr><tr><th>Kavramsal beceriler</th><td colspan="3">…</td></tr><tr><th>Eğilimler</th><td colspan="3">…</td></tr><tr><th>Sosyal-duygusal öğrenme becerileri</th><td colspan="3">…</td></tr><tr><th>Değerler</th><td colspan="3">…</td></tr><tr><th>Okuryazarlık becerileri</th><td colspan="3">…</td></tr><tr><th>Disiplinler arası ilişkiler</th><td colspan="3">…</td></tr>
     <tr><th>Araç-gereç</th><td colspan="3">Ders kitabı, …</td></tr></table>
     <h3>Öğrenme-öğretme uygulamaları</h3><p><b>Hazırlık / dikkat çekme:</b> …</p><p><b>Dinleme / İzleme:</b> …</p><p><b>Okuma:</b> …</p><p><b>Konuşma:</b> …</p><p><b>Yazma:</b> …</p>
     <h3>Farklılaştırma</h3><p><b>Zenginleştirme:</b> …</p><p><b>Destekleme:</b> …</p>
     <h3>Ölçme ve değerlendirme</h3><p>Kontrol listesi / dereceli puanlama anahtarı / öz değerlendirme: …</p>
     <h3>Öğretmen yansıtmaları</h3><p>…</p>
-    ${imzaTablo([`${esc(p.ad)}<br>${esc(p.brans)} Öğretmeni`, `${esc(p.mudur)}<br>Okul Müdürü`])}` },
-  { k:'yillik', kat:'Plan', ad:'Yıllık Plan Kapağı ve Onay', not:'Yıllık planınızı Dosyalar\'a yükleyip bu kapakla sunun.', f:(p) => `${baslik(p)}<h2 style="text-align:center">${esc(p.yil)} EĞİTİM-ÖĞRETİM YILI<br>${esc(up(p.brans))} DERSİ 6. SINIF YILLIK PLANI</h2>
+    ${imzaTablo([`${esc(p.ad)}<br>${esc(p.brans)} Öğretmeni`, `${esc(p.mudur || '…')}<br>Okul Müdürü`])}` },
+  { k:'yillik', kat:'Plan', ad:'Yıllık Plan Kapağı ve Onay', not:'Yıllık planınızı Dosyalar\'a yükleyip bu kapakla sunun.', f:(p) => `${baslik(p)}<h2 style="text-align:center">${esc(p.yil)} EĞİTİM-ÖĞRETİM YILI<br>${esc(up(p.brans))} DERSİ ${isTurkce() ? '6' : '…'}. SINIF YILLIK PLANI</h2>
     <p>Bu plan, Türkiye Yüzyılı Maarif Modeli Türkçe Dersi Öğretim Programı ve Bakanlıkça yayımlanan çerçeve plan esas alınarak, zümre öğretmenler kurulu kararları doğrultusunda hazırlanmıştır.</p>
-    <table><tr><th>Tema</th><th>Tahmini süre</th><th>Açıklama</th></tr>${TEMALAR[6].map((t, i) => `<tr><td>${i + 1}. ${esc(t)}</td><td>… hafta</td><td></td></tr>`).join('')}</table>
+    <table><tr><th>Tema</th><th>Tahmini süre</th><th>Açıklama</th></tr>${(isTurkce() ? TEMALAR[6] : ['…','…','…','…','…','…']).map((t, i) => `<tr><td>${i + 1}. ${esc(t)}</td><td>… hafta</td><td></td></tr>`).join('')}</table>
     ${imzaTablo([`${esc(p.ad)}<br>${esc(p.brans)} Öğretmeni`, '…<br>Türkçe Öğretmeni'])}${onay(p)}` },
   { k:'baskan', kat:'Tutanak', ad:'Sınıf Başkanı Seçim Tutanağı', not:'Rehber sınıfınız için oy tablosu ile.', f:(p) => { const s = rehberSinif(); const sa = sinifKisa(s ? s.ad : p.rehberSinif);
     return `${baslik(p)}<h2 style="text-align:center">${esc(sa)} SINIFI SINIF BAŞKANI SEÇİM TUTANAĞI</h2>
@@ -939,9 +965,23 @@ const ACT = {
     const f = [['ad','Adı Soyadı'],['hitap','Hitap (ana sayfada)'],['brans','Branş'],['okul','Okul'],['ilce','İlçe'],['il','İl'],['mudur','Okul müdürü'],['rehberSinif','Rehber öğretmeni olduğunuz sınıf'],['yil','Eğitim-öğretim yılı']];
     openModal('Profil ve ayarlar', `<div class="fgrid">${f.map(([k, l]) => `<div class="field"><label for="pf-${k}">${l}</label><input class="inp" id="pf-${k}" value="${esc(p[k])}"></div>`).join('')}</div>
       <p class="note">Bu bilgiler tüm tutanak ve formlara otomatik yazılır.</p>
+      <div class="card" style="background:var(--sunk)"><h3>Meslektaşlarınızla paylaşın</h3><p class="note" style="margin-bottom:10px">Uygulamanın adresini gönderin; her öğretmen kendi bilgileriyle kurar. Sizin verileriniz onlara gitmez.</p><button class="btn sm" data-act="paylas">Uygulamayı paylaş</button></div>
       <div class="card" style="background:var(--sunk)"><h3>Yedek</h3><p class="note" style="margin-bottom:10px">Her şey bu cihazın içinde saklanır. Yedek dosyası sınıfları, çizelgeleri, evrakları ve yüklediğiniz dosyaların hepsini içerir. Telefonu değiştirirken veya bilgisayara aktarırken bu yedeği indirip diğer cihazda "Yedekten geri yükle" ile açın. Ayda bir yedek almanızı öneririm.</p>
       <div class="row"><button class="btn sm" data-act="yedek-al">${icon('down')}Yedeği indir (.json)</button><label class="btn sm" for="yedek-file">${icon('up')}Yedekten geri yükle</label><input type="file" id="yedek-file" data-in="yedek-file" accept=".json,application/json" hidden></div></div>`,
       `<button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="profil-save">Kaydet</button>`, true); },
+  'kurulum-kaydet': () => {
+    const v = k => ($('#ku-' + k).value || '').trim();
+    const ad = v('ad'), brans = v('brans'), okul = v('okul');
+    if (!ad || !brans || !okul) { toast('Lütfen adınızı, branşınızı ve okulunuzu yazın.'); return; }
+    const rehber = v('rehber').replace(/\s+/g, '').toLocaleUpperCase('tr');
+    const profil = { ...P0, ad, brans, okul, ilce:v('ilce'), il:v('il'), mudur:v('mudur'), rehberSinif:rehber, hitap:v('hitap') || ad.split(' ')[0] };
+    Store.put('ayar', { type:'ayar', profil, klasorler:KLASOR0.map(k => k === 'Rehberlik (6A)' ? (rehber ? `Rehberlik (${rehber})` : 'Rehberlik') : k) }, true);
+    if (rehber && !siniflar().length) Store.put(rid('sinif'), { type:'sinif', ad:rehber, rehber:true, ogr:[], tarih:Date.now() }, true);
+    shell(); go('pano'); toast('Hoş geldiniz! Önce sınıf listenizi yükleyin.', 4000);
+  },
+  'paylas': async () => { const url = location.origin + location.pathname;
+    if (navigator.share) { try { await navigator.share({ title:'Öğretmen Dosyam', text:'Öğretmen dosyası uygulaması: sınıf listeleri, çizelgeler, tutanaklar, mevzuat. Ücretsiz, internetsiz çalışır.', url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(url); toast('Adres kopyalandı: ' + url, 4000); } catch (e) { toast(url, 6000); } },
   'profil-save': () => { const a = ayar(); const p = { ...prof() }; for (const k of Object.keys(P0)) { const el = $('#pf-' + k); if (el) p[k] = el.value.trim(); } Store.put('ayar', { ...a, type:'ayar', profil:p }, true); closeModal(); shell(); render(); toast('Profil kaydedildi.'); },
   'yedek-al': async b => { b.disabled = true; toast('Yedek hazırlanıyor…', 6000);
     try { const data = {}, files = {}; for (const [id, d] of Store.items) { data[id] = d; if (d.type === 'dosya' && d.assetId) { const bl = await Files.get(d.assetId); if (bl) files[d.assetId] = await readDataURL(bl); } }
