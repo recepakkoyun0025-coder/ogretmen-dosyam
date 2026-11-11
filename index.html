@@ -36,6 +36,17 @@ body{margin:0}img{max-width:100%}
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+.aihl{background:var(--warn-soft)!important;border-color:var(--warn)!important}
+.board{text-align:center;font-size:12px;letter-spacing:.08em;font-weight:600;color:var(--muted);border:1.5px solid var(--line2);border-radius:6px;padding:8px;margin-bottom:16px;background:var(--sunk)}
+.desks{display:grid;gap:14px 18px;min-width:max-content}
+.desk{display:flex;gap:4px;padding:5px;border-radius:8px;background:var(--sunk);border:1px solid var(--line)}
+.seat{flex:1;min-width:76px;min-height:56px;border:1px dashed var(--line2);border-radius:6px;background:var(--surface);cursor:pointer;font-size:12.5px;line-height:1.25;padding:5px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--ink);text-align:center}
+.seat .num{font-size:11px;color:var(--muted)}
+.seat.on{border-style:solid;border-color:var(--blue)}
+.seat.kiz{border-color:var(--red)}
+.seat.erkek{border-color:var(--blue)}
+.seat.sel{box-shadow:0 0 0 2px var(--warn)}
+.tabbar button span{font-size:10px}
 body.setup .tabbar,body.setup .side .navlink,body.setup .topbar .btn{display:none}
 html,body{min-height:100%}
 body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}

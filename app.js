@@ -16,6 +16,7 @@ let toastT;
 function toast(msg, ms = 2800) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
 
 const IC = {
+  rehberlik:'<circle cx="12" cy="7" r="3.2"/><path d="M5 20.5c.7-3.8 3.4-6 7-6s6.3 2.2 7 6"/><path d="M16.5 3.5l1.5 1.5 3-3"/>',
   pano:'<path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   siniflar:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14c2.3.1 4 1.6 4.5 4.5"/>',
   cizelgeler:'<rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M3.5 9h17M3.5 14h17M9 4v16M14.5 4v16"/>',
@@ -225,7 +226,7 @@ function seedIfEmpty() { /* İlk açılışta kurulum ekranı gösterilir (PAGES
 const needsSetup = () => S.ready && !Store.get('ayar');
 
 /* ===================== Kabuk ===================== */
-const NAV = [['pano','Ana Sayfa'],['siniflar','Sınıflar'],['cizelgeler','Çizelgeler'],['evraklar','Evraklar'],['dosyalar','Dosyalar'],['mevzuat','Mevzuat'],['mufettis','Müfettiş Dosyası']];
+const NAV = [['pano','Ana Sayfa'],['siniflar','Sınıflar'],['rehberlik','Rehberlik'],['cizelgeler','Çizelgeler'],['evraklar','Evraklar'],['dosyalar','Dosyalar'],['mevzuat','Mevzuat'],['mufettis','Müfettiş Dosyası']];
 function shell() {
   const p = prof();
   $('#side').innerHTML = `<div class="brand"><div class="brand-mark">ÖD</div><div><b>Öğretmen Dosyam</b><small>${esc(p.yil)} · ${esc(p.brans)}</small></div></div>
@@ -236,11 +237,12 @@ function shell() {
   $('#topbar').innerHTML = `<div class="brand"><div class="brand-mark">ÖD</div><div style="min-width:0"><b>Öğretmen Dosyam</b><small class="syncstate" style="display:flex;gap:6px;align-items:center"></small></div></div>
     <button class="btn sm" data-act="nav" data-p="mufettis">${icon('mufettis')}Müfettiş</button>
     <button class="btn ghost sm" data-act="profil" aria-label="Profil ve ayarlar">${icon('user')}</button>`;
-  $('#tabbar').innerHTML = NAV.slice(0, 6).map(([k, t]) => `<button data-act="nav" data-p="${k}">${icon(k)}<span>${t === 'Ana Sayfa' ? 'Pano' : t}</span></button>`).join('');
+  const KISA = { 'Ana Sayfa':'Pano', 'Çizelgeler':'Çizelge', 'Evraklar':'Evrak', 'Dosyalar':'Dosya' };
+  $('#tabbar').innerHTML = NAV.slice(0, 7).map(([k, t]) => `<button data-act="nav" data-p="${k}">${icon(k)}<span>${KISA[t] || t}</span></button>`).join('');
   setSync(Store.mode === 'init' ? 'init' : Store.dirty.size ? 'busy' : 'ok');
 }
 function markNav() {
-  const top = { sinif:'siniflar', cizelge:'cizelgeler', evrak:'evraklar' }[S.page] || S.page;
+  const top = { sinif:'siniflar', cizelge:'cizelgeler', evrak:'evraklar', ogrenci:'rehberlik', oturma:'rehberlik' }[S.page] || S.page;
   $$('[data-act="nav"]').forEach(b => { if (b.dataset.p === top) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
 }
 function go(page, pid = null) { if (S.page === 'evrak') evFlush(); S.page = page; S.pid = pid; S.edit = null; render(); window.scrollTo(0, 0); }
@@ -342,6 +344,8 @@ function kontrolListesi() {
     { ad:'Sınıf rehberlik planı', ok:hasEv('Rehberlik') || hasF(rehberKlasor()), ipucu:'Aylık rehberlik etkinlikleri', act:'ev-new', arg:'rehberlik' },
     { ad:'Ders planı (Maarif Modeli)', ok:hasEv('Plan', /ders planı/i) || hasF('Ders Planları'), ipucu:'Tema ve öğrenme çıktılarıyla', act:'ev-new', arg:'dersplani' },
     { ad:'Değerlendirme çizelgeleri', ok:cizelgeler().length > 0, ipucu:'Ödev, okuma, konuşma, defter kontrol…', act:'cz-new' },
+    { ad:'Öğrenci tanıma formları', ok:(() => { const s = rehberSinif(); return !!s && (s.ogr || []).length > 0 && (s.ogr || []).filter(o => obDolu(o.id) > 0).length >= (s.ogr || []).length / 2; })(), ipucu:'Fotoğraftan otomatik okunur', act:'nav', arg:'rehberlik' },
+    { ad:'Oturma planı', ok:(() => { const s = rehberSinif(); return !!s && !!Store.get('oturma_' + s.id); })(), ipucu:rsAd() + ' için', act:'nav', arg:'rehberlik' },
     { ad:'Sınıf başkanı seçim tutanağı', ok:hasEv(null, /başkan/i), ipucu:rsAd() + ' için', act:'ev-new', arg:'baskan' }
   ];
 }
@@ -367,7 +371,7 @@ PAGES.sinif = () => {
   <div class="pagehead"><div class="row" style="align-items:center">
       <input class="inp" id="sinif-ad" data-in="sinif-ad" value="${esc(s.ad)}" style="font-family:var(--f-disp);font-size:24px;font-weight:700;width:140px">
       <label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" id="sinif-rehber" data-in="sinif-rehber" ${s.rehber ? 'checked' : ''}> Rehber öğretmeni olduğum sınıf</label></div>
-    <div class="row"><button class="btn" data-act="imp-open" data-id="${s.id}">${icon('up')}Listeyi yükle / ekle</button><button class="btn primary" data-act="cz-new" data-id="${s.id}">${icon('plus')}Bu sınıfa çizelge</button></div></div>
+    <div class="row"><button class="btn" data-act="rb-git" data-id="${s.id}">${icon('rehberlik')}Öğrenci bilgileri</button><button class="btn" data-act="open-oturma" data-id="${s.id}">Oturma planı</button><button class="btn" data-act="imp-open" data-id="${s.id}">${icon('up')}Listeyi yükle / ekle</button><button class="btn primary" data-act="cz-new" data-id="${s.id}">${icon('plus')}Bu sınıfa çizelge</button></div></div>
   <div class="grid g2" style="align-items:start">
     <section class="card" style="padding:0">
       <div class="row between" style="padding:14px 16px"><h3 style="margin:0">Öğrenci listesi <span class="pill num">${ogr.length}</span></h3>
@@ -585,7 +589,7 @@ PAGES.mufettis = () => {
       ${sec('Zümre öğretmenler toplantı tutanakları', evBy('Zümre').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Zümre Tutanakları').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Şube öğretmenler kurulu tutanakları', evBy('Şube Öğretmenler Kurulu').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Şube Öğretmenler Kurulu').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Veli toplantıları ve görüşmeler', evBy('Veli').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === 'Veli Toplantıları').map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
-      ${sec('Sınıf rehberliği', evBy('Rehberlik').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === rehberKlasor()).map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
+      ${sec('Sınıf rehberliği', rbMufettisItems() + evBy('Rehberlik').map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('') + dz.filter(f => f.klasor === rehberKlasor()).map(f => it('dz-open', f.id, f.ad, 'dosya')).join(''))}
       ${sec('Ölçme-değerlendirme çizelgeleri', cz.map(c => it('open-cizelge', c.id, c.ad, sinifAd(c.sinifId))).join(''))}
       ${sec('Diğer tutanak ve yazışmalar', [...evBy('Tutanak'), ...evBy('Dilekçe'), ...evBy('Diğer')].map(e => it('open-evrak', e.id, e.baslik, e.kategori)).join(''))}
       ${sec('Yüklenen belgeler ve fotoğraflar', kl.filter(k => !['Yıllık Planlar','Ders Planları','Zümre Tutanakları','Şube Öğretmenler Kurulu','Veli Toplantıları',rehberKlasor()].includes(k)).map(k => `<div style="padding:6px 0 2px 28px" class="eyebrow">${esc(k)}</div>` + dz.filter(f => f.klasor === k).map(f => it('dz-open', f.id, f.ad, fmtSize(f.boyut || 0))).join('')).join(''))}
@@ -625,7 +629,7 @@ const EV_TPL = [
     <h3>Alınan kararlar</h3><ol><li>…</li><li>…</li></ol>
     ${imzaTablo([`${esc(p.ad)}<br>${esc(sa)} Sınıf Rehber Öğretmeni`, `…<br>Veli Temsilcisi`])}${onay(p)}
     <h2 style="text-align:center;page-break-before:always">${esc(sa)} SINIFI VELİ TOPLANTISI KATILIM LİSTESİ</h2><p style="text-align:center">Tarih: …/…/20…</p>
-    <table><tr><th>S.No</th><th>Öğr. No</th><th>Öğrencinin Adı Soyadı</th><th>Velinin Adı Soyadı</th><th>Yakınlığı</th><th>İmza</th></tr>${(ogr.length ? ogr : Array.from({ length:25 }, () => ({ no:'', ad:'' }))).map((o, i) => `<tr><td>${i + 1}</td><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td></td><td></td><td></td></tr>`).join('')}</table>`; } },
+    <table><tr><th>S.No</th><th>Öğr. No</th><th>Öğrencinin Adı Soyadı</th><th>Velinin Adı Soyadı</th><th>Yakınlığı</th><th>İmza</th></tr>${(ogr.length ? ogr : Array.from({ length:25 }, () => ({ no:'', ad:'' }))).map((o, i) => `<tr><td>${i + 1}</td><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td>${esc(o.id ? obF(o.id).veliAd || '' : '')}</td><td>${esc(o.id ? obF(o.id).veliYakinlik || '' : '')}</td><td></td></tr>`).join('')}</table>`; } },
   { k:'veligorusme', kat:'Veli', ad:'Veli Görüşme Formu', not:'Bireysel görüşmeler için.', f:(p) => `${baslik(p)}<h2 style="text-align:center">VELİ GÖRÜŞME FORMU</h2>
     <table><tr><th>Öğrencinin adı soyadı</th><td></td><th>Sınıfı / No</th><td></td></tr><tr><th>Görüşülen veli</th><td></td><th>Yakınlığı</th><td></td></tr><tr><th>Tarih / saat</th><td>…/…/20… · …:…</td><th>Görüşme şekli</th><td>Yüz yüze / Telefon / Çevrim içi</td></tr><tr><th>Görüşmeyi isteyen</th><td colspan="3">Öğretmen / Veli / Okul idaresi</td></tr></table>
     <h3>Görüşme nedeni</h3><p>…</p><h3>Görüşülen konular</h3><p>…</p><h3>Varılan sonuç ve öneriler</h3><p>…</p><h3>İzleme tarihi</h3><p>…/…/20…</p>
@@ -842,7 +846,7 @@ function czNewModal(tplK, sinifId) {
 
 /* ===================== Olaylar ===================== */
 const ACT = {
-  'nav': b => go(b.dataset.p),
+  'nav': b => go(b.dataset.p || b.dataset.k),
   'modal-close': () => closeModal(),
   'confirm-yes': () => { const cb = S.confirmCb; S.confirmCb = null; closeModal(); cb && cb(); },
   'open-sinif': b => { closeModal(); go('sinif', b.dataset.id); },
@@ -965,6 +969,7 @@ const ACT = {
     const f = [['ad','Adı Soyadı'],['hitap','Hitap (ana sayfada)'],['brans','Branş'],['okul','Okul'],['ilce','İlçe'],['il','İl'],['mudur','Okul müdürü'],['rehberSinif','Rehber öğretmeni olduğunuz sınıf'],['yil','Eğitim-öğretim yılı']];
     openModal('Profil ve ayarlar', `<div class="fgrid">${f.map(([k, l]) => `<div class="field"><label for="pf-${k}">${l}</label><input class="inp" id="pf-${k}" value="${esc(p[k])}"></div>`).join('')}</div>
       <p class="note">Bu bilgiler tüm tutanak ve formlara otomatik yazılır.</p>
+      <div class="card" style="background:var(--sunk)"><h3>Yapay zekâ ile form okuma</h3><p class="note" style="margin-bottom:10px">${(ayar().aiKey || '').trim() ? 'Anahtar ekli. Tanıma formlarının fotoğrafları otomatik okunur.' : 'El yazısıyla doldurulmuş tanıma formlarını fotoğraftan okumak için anahtar ekleyin.'}</p><button class="btn sm" data-act="ai-ayar">Ayarla</button></div>
       <div class="card" style="background:var(--sunk)"><h3>Meslektaşlarınızla paylaşın</h3><p class="note" style="margin-bottom:10px">Uygulamanın adresini gönderin; her öğretmen kendi bilgileriyle kurar. Sizin verileriniz onlara gitmez.</p><button class="btn sm" data-act="paylas">Uygulamayı paylaş</button></div>
       <div class="card" style="background:var(--sunk)"><h3>Yedek</h3><p class="note" style="margin-bottom:10px">Her şey bu cihazın içinde saklanır. Yedek dosyası sınıfları, çizelgeleri, evrakları ve yüklediğiniz dosyaların hepsini içerir. Telefonu değiştirirken veya bilgisayara aktarırken bu yedeği indirip diğer cihazda "Yedekten geri yükle" ile açın. Ayda bir yedek almanızı öneririm.</p>
       <div class="row"><button class="btn sm" data-act="yedek-al">${icon('down')}Yedeği indir (.json)</button><label class="btn sm" for="yedek-file">${icon('up')}Yedekten geri yükle</label><input type="file" id="yedek-file" data-in="yedek-file" accept=".json,application/json" hidden></div></div>`,
@@ -1044,6 +1049,310 @@ document.addEventListener('change', async e => {
 });
 
 document.addEventListener('visibilitychange', () => { if (document.hidden) { if (S.page === 'evrak') evFlush(); Store.flushAll(); } });
+
+/* ===================== Rehberlik: öğrenci bilgileri, oturma planı, formlar ===================== */
+const OB_GRUP = [
+  ['Öğrenci', [['dogumTarihi','Doğum tarihi'],['dogumYeri','Doğum yeri'],['cinsiyet','Cinsiyeti','sel',['','Kız','Erkek']],['adres','Ev adresi','uzun'],['kardesSayisi','Kardeş sayısı'],['kacinciCocuk','Kaçıncı çocuk'],['kimleYasiyor','Kiminle yaşıyor'],['kendiOdasi','Kendine ait odası','sel',['','Var','Yok']],['okulaGelis','Okula nasıl geliyor'],['kanGrubu','Kan grubu']]],
+  ['Sağlık ve özel durum', [['saglik','Sürekli hastalık, alerji, kullandığı ilaç','uzun'],['ozelDurum','Engel, özel eğitim, kaynaştırma durumu','uzun'],['gozlukIsitme','Gözlük / işitme cihazı']]],
+  ['İlgi ve başarı', [['hobiler','Hobileri, ilgi alanları','uzun'],['sevdigiDersler','Sevdiği dersler'],['zorlandigiDersler','Zorlandığı dersler'],['hedefMeslek','İstediği meslek'],['kurslar','Kurs ve etkinlikler'],['kitap','Kitap okuma alışkanlığı'],['teknoloji','Telefon, tablet, internet kullanımı']]],
+  ['Anne', [['anneAd','Adı soyadı'],['anneDurum','Durumu','sel',['','Sağ','Vefat']],['anneEgitim','Eğitim durumu'],['anneMeslek','Mesleği'],['anneTel','Telefonu','tel']]],
+  ['Baba', [['babaAd','Adı soyadı'],['babaDurum','Durumu','sel',['','Sağ','Vefat']],['babaEgitim','Eğitim durumu'],['babaMeslek','Mesleği'],['babaTel','Telefonu','tel']]],
+  ['Aile ve veli', [['aileDurum','Anne ve baba','sel',['','Birlikte','Boşanmış','Ayrı yaşıyor']],['veliAd','Velinin adı soyadı'],['veliYakinlik','Veli yakınlığı'],['veliTel','Veli telefonu','tel'],['veliEposta','Veli e-posta']]],
+  ['Öğretmen notu', [['not','Gözlem ve notlar','uzun']]]
+];
+const OB_ALAN = OB_GRUP.flatMap(g => g[1]);
+const obId = ogrId => 'ogrbilgi_' + ogrId;
+const obGet = ogrId => Store.get(obId(ogrId));
+const obF = ogrId => (obGet(ogrId) || {}).f || {};
+function obDolu(ogrId) { const f = obF(ogrId); const keys = OB_ALAN.filter(a => a[0] !== 'not').map(a => a[0]); return Math.round(keys.filter(k => f[k]).length / keys.length * 100); }
+function obSave(ogrId, sinifId, f, fotolar) {
+  const cur = obGet(ogrId) || { type:'ogrbilgi', ogrId, sinifId, f:{}, fotolar:[] };
+  Store.put(obId(ogrId), { ...cur, type:'ogrbilgi', ogrId, sinifId, f:{ ...(cur.f || {}), ...(f || {}) }, fotolar:fotolar || cur.fotolar || [] });
+}
+function findOgr(ogrId) { for (const s of siniflar()) { const o = (s.ogr || []).find(x => x.id === ogrId); if (o) return { s, o }; } return null; }
+const trNorm = s => low(s).replace(/[çğıöşüâîû]/g, c => ({ ç:'c', ğ:'g', ı:'i', ö:'o', ş:'s', ü:'u', â:'a', î:'i', û:'u' }[c])).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function matchOgr(sinif, ad, no) {
+  const ogr = sinif ? sinif.ogr || [] : []; const nn = String(no || '').replace(/\D/g, '');
+  if (nn) { const o = ogr.find(x => String(x.no) === nn); if (o) return o.id; }
+  const t = trNorm(ad).split(' ').filter(Boolean); if (!t.length) return '';
+  let best = '', bs = 0;
+  for (const o of ogr) { const u = trNorm(o.ad).split(' '); const hit = t.filter(x => u.includes(x)).length; const sc = hit / Math.max(t.length, u.length); if (sc > bs) { bs = sc; best = o.id; } }
+  return bs >= 0.5 ? best : '';
+}
+const rbSinif = () => Store.get(S.rbSinif) || rehberSinif() || siniflar()[0] || null;
+
+/* ---- Yapay zekâ ile form okuma (Google Gemini) ---- */
+const AI_PROMPT = `Bu fotoğraf(lar) Türkiye'de bir ortaokulda öğrenci veya velisi tarafından el yazısıyla doldurulmuş bir "Öğrenci Tanıma / Kişisel Bilgi Formu"nun sayfalarıdır. Formdaki bilgileri dikkatle oku ve yalnızca verilen alanlara yaz.
+Kurallar:
+- Formda olmayan ya da okunamayan alanları boş bırak, tahmin etme.
+- Kişi adlarını "Ad SOYAD" biçiminde yaz (soyadı büyük harf).
+- Tarihleri GG.AA.YYYY biçiminde yaz.
+- Telefonları 05xx xxx xx xx biçiminde yaz.
+- İşaretlenmiş seçenekleri seçilen değer olarak yaz.
+- cinsiyet: "Kız" veya "Erkek". anneDurum ve babaDurum: "Sağ" veya "Vefat". aileDurum: "Birlikte", "Boşanmış" veya "Ayrı yaşıyor". kendiOdasi: "Var" veya "Yok".
+- adSoyad: öğrencinin adı soyadı. okulNo: öğrencinin okul numarası (yalnızca rakam).
+- Bu alanlarla eşleşmeyen ama öğretmen için önemli bilgileri "not" alanına kısaca yaz.`;
+async function shrinkTo(blob, max) {
+  try { const bmp = await createImageBitmap(blob); const k = Math.min(1, max / Math.max(bmp.width, bmp.height)); const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); return await new Promise(r => c.toBlob(b => r(b || blob), 'image/jpeg', .85)); } catch (e) { return blob; }
+}
+async function aiOku(blobs) {
+  const a = ayar(); const key = (a.aiKey || '').trim(); if (!key) throw { code:'nokey' };
+  const model = (a.aiModel || 'gemini-2.5-flash').trim();
+  const parts = [{ text:AI_PROMPT }];
+  for (const b of blobs) { const sb = await shrinkTo(b, 1800); const du = await readDataURL(sb); parts.push({ inline_data:{ mime_type:'image/jpeg', data:du.slice(du.indexOf(',') + 1) } }); }
+  const props = { adSoyad:{ type:'STRING' }, okulNo:{ type:'STRING' } }; OB_ALAN.forEach(([k, l]) => { props[k] = { type:'STRING', description:l }; });
+  const body = JSON.stringify({ contents:[{ role:'user', parts }], generationConfig:{ temperature:0, responseMimeType:'application/json', responseSchema:{ type:'OBJECT', properties:props } } });
+  const call = m => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key':key }, body });
+  let r;
+  try { r = await call(model); if (r.status === 404 && model !== 'gemini-flash-latest') r = await call('gemini-flash-latest'); }
+  catch (e) { throw { code:'net' }; }
+  if (!r.ok) { let msg = ''; try { msg = (await r.json()).error.message; } catch (e) {} throw { code:r.status, msg }; }
+  const j = await r.json(); const t = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('');
+  try { return JSON.parse(t); } catch (e) { throw { code:'parse' }; }
+}
+function aiHata(e) {
+  const c = e && e.code;
+  if (c === 'nokey') return 'Yapay zekâ anahtarı girilmemiş. Profil › Yapay zekâ ile form okuma bölümünden ekleyin.';
+  if (c === 'net') return 'İnternet bağlantısı yok. Form okuma için internet gerekir.';
+  if (c === 400 || c === 403) return 'Anahtar geçersiz ya da yetkisiz. Profil bölümünden anahtarı kontrol edin.' + (e.msg ? ' (' + e.msg.slice(0, 120) + ')' : '');
+  if (c === 429) return 'Kullanım sınırına ulaşıldı. Bir dakika bekleyip tekrar deneyin.';
+  if (c === 'parse') return 'Form okunamadı. Fotoğrafı daha aydınlık ve düz çekip tekrar deneyin.';
+  return 'Form okunamadı.' + (e && e.msg ? ' (' + e.msg.slice(0, 120) + ')' : '');
+}
+
+/* ---- Sayfa: Rehberlik ---- */
+PAGES.rehberlik = () => {
+  const sn = siniflar(); const s = rbSinif();
+  if (!s) return `<div class="pagehead"><div><h1>Rehberlik</h1><p>Önce bir sınıf oluşturun.</p></div></div><div class="empty"><b>Henüz sınıf yok</b><button class="btn primary" data-act="imp-open">${icon('up')}Sınıf listesi yükle</button></div>`;
+  S.rbSinif = s.id; const ogr = s.ogr || [];
+  const dolu = ogr.filter(o => obDolu(o.id) > 0).length; const op = Store.get('oturma_' + s.id);
+  const rbEv = evraklar().filter(e => e.kategori === 'Rehberlik' && (!e.sinifId || e.sinifId === s.id));
+  return `${banner()}
+  <div class="pagehead"><div><h1>Rehberlik · ${esc(s.ad)}</h1><p>Öğrenci tanıma formları, öğrenci bilgi kartları, oturma planı ve rehberlik listeleri. Bilgiler tutanak ve formlara otomatik aktarılır.</p></div></div>
+  ${sn.length > 1 ? `<div class="chips">${sn.map(x => `<button class="chip" data-act="rb-sinif" data-k="${x.id}" aria-pressed="${x.id === s.id}">${esc(x.ad)}${x.rehber ? ' · rehber' : ''}</button>`).join('')}</div>` : ''}
+  <section class="card">
+    <div class="row between"><h2 style="margin:0">Öğrenci bilgileri</h2><span class="pill ${dolu === ogr.length && ogr.length ? 'ok' : 'warn'}">${dolu}/${ogr.length} öğrencinin bilgisi var</span></div>
+    <p class="note" style="margin:8px 0 12px">Doldurulmuş tanıma formlarının fotoğrafını çekin; uygulama formu okuyup bilgileri öğrencinin kartına yazar. Toplu okumada her fotoğraf bir öğrencinin formu olmalı.</p>
+    <div class="row" style="margin-bottom:14px"><button class="btn primary" data-act="rb-toplu">${icon('up')}Formları toplu oku</button><button class="btn" data-act="rb-bosform">Boş tanıma formu yazdır</button><button class="btn" data-act="rb-adliform">Adlı formlar yazdır (tüm sınıf)</button></div>
+    ${ogr.length ? `<div class="grid g3">${ogr.map(o => { const d = obDolu(o.id); const ob = obGet(o.id) || {}; return `<button class="tpl" data-act="open-ogrenci" data-id="${o.id}" style="padding:11px 13px"><div class="row between" style="gap:6px"><b style="font-size:14.5px;font-family:var(--f-body)">${esc(o.ad)}</b><span class="pill ${d >= 60 ? 'ok' : d > 0 ? 'warn' : ''}">%${d}</span></div><small><span class="num">${esc(o.no)}</span>${(ob.fotolar || []).length ? ' · form fotoğrafı var' : ''}${(ob.f || {}).saglik || (ob.f || {}).ozelDurum ? ' · <span style="color:var(--red)">sağlık/özel durum</span>' : ''}</small></button>`; }).join('')}</div>` : `<div class="empty"><b>Sınıf listesi boş</b><button class="btn primary" data-act="imp-open" data-id="${s.id}">${icon('up')}Liste yükle</button></div>`}
+  </section>
+  <div class="grid g2">
+    <section class="card"><h2>Oturma planı</h2><p class="note" style="margin-bottom:12px">${op ? `${op.sira} sıra × ${op.sutun} sütun · ${Object.values(op.yer || {}).filter(Boolean).length} öğrenci yerleşti · ${fmtD(op.guncelleme)}` : 'Henüz oturma planı yok. Rastgele, numara sırasına göre ya da kız-erkek karışık yerleştirebilirsiniz.'}</p><button class="btn blue" data-act="open-oturma" data-id="${s.id}">${op ? 'Oturma planını aç' : 'Oturma planı oluştur'}</button></section>
+    <section class="card"><h2>Listeler</h2><div class="list">
+      ${[['veli', 'Veli iletişim listesi'], ['dogum', 'Doğum günleri listesi'], ['saglik', 'Sağlık ve özel durumlar'], ['ozet', 'Tüm bilgiler (Excel)']].map(([k, t]) => `<button class="li" data-act="rb-liste" data-k="${k}">${icon('evraklar')}<span class="t"><b>${t}</b><small>${k === 'ozet' ? 'Excel dosyası olarak indir' : 'Yazdır / PDF'}</small></span></button>`).join('')}
+    </div></section>
+  </div>
+  <section class="card"><div class="row between"><h2 style="margin:0">Rehberlik evrakları</h2></div>
+    <div class="row" style="margin:12px 0">${['rehberlik', 'gozlemformu', 'veligorusme', 'baskan'].map(k => { const t = EV_TPL.find(x => x.k === k); return t ? `<button class="btn sm" data-act="ev-new" data-k="${k}">${icon('plus')}${esc(t.ad)}</button>` : ''; }).join('')}</div>
+    ${rbEv.length ? `<div class="list">${rbEv.map(e => `<button class="li" data-act="open-evrak" data-id="${e.id}">${icon('evraklar')}<span class="t"><b>${esc(e.baslik)}</b><small>${fmtD(e.guncelleme)}</small></span></button>`).join('')}</div>` : '<p class="muted">Henüz rehberlik evrakı yok.</p>'}
+  </section>`;
+};
+
+/* ---- Sayfa: Öğrenci bilgi kartı ---- */
+PAGES.ogrenci = () => {
+  const r = findOgr(S.pid); if (!r) return `<div class="empty"><b>Öğrenci bulunamadı</b><button class="btn" data-act="nav" data-p="rehberlik">Rehberliğe dön</button></div>`;
+  const { s, o } = r; const ob = obGet(o.id) || {}; const f = ob.f || {}; const fot = (ob.fotolar || []).map(id => Store.get(id)).filter(Boolean);
+  const idx = s.ogr.findIndex(x => x.id === o.id); const prev = s.ogr[idx - 1], next = s.ogr[idx + 1];
+  const hl = S.aiHl || {};
+  const inp = ([k, l, t, opts]) => {
+    const v = f[k] || ''; const cls = `inp${hl[k] ? ' aihl' : ''}`;
+    if (t === 'sel') return `<div class="field"><label for="ob-${k}">${l}</label><select class="${cls}" id="ob-${k}" data-in="ob" data-k="${k}">${[...new Set([...opts, v])].map(x => `<option ${x === v ? 'selected' : ''} value="${esc(x)}">${esc(x || '—')}</option>`).join('')}</select></div>`;
+    if (t === 'uzun') return `<div class="field" style="grid-column:1/-1"><label for="ob-${k}">${l}</label><textarea class="${cls}" id="ob-${k}" data-in="ob" data-k="${k}" style="min-height:64px;font-family:var(--f-body);font-size:14px">${esc(v)}</textarea></div>`;
+    return `<div class="field"><label for="ob-${k}">${l}</label><input class="${cls}" id="ob-${k}" data-in="ob" data-k="${k}" value="${esc(v)}" ${t === 'tel' ? 'inputmode="tel"' : ''}></div>`;
+  };
+  return `<div class="row between"><button class="btn ghost sm" data-act="nav" data-p="rehberlik">${icon('back')}Rehberlik · ${esc(s.ad)}</button>
+    <div class="row">${prev ? `<button class="btn sm" data-act="open-ogrenci" data-id="${prev.id}">← Önceki</button>` : ''}${next ? `<button class="btn sm" data-act="open-ogrenci" data-id="${next.id}">Sonraki →</button>` : ''}</div></div>
+  <div class="pagehead"><div class="row" style="align-items:flex-end;flex:1;min-width:min(100%,300px)">
+      <div class="field" style="width:96px"><label for="obn-no">No</label><input class="inp num" id="obn-no" data-in="obn" data-f="no" value="${esc(o.no)}" inputmode="numeric"></div>
+      <div class="field" style="flex:1;min-width:180px"><label for="obn-ad">Adı soyadı</label><input class="inp" id="obn-ad" data-in="obn" data-f="ad" value="${esc(o.ad)}" style="font-family:var(--f-disp);font-size:19px;font-weight:600"></div></div>
+    <span class="pill ${obDolu(o.id) >= 60 ? 'ok' : 'warn'}">Bilgi doluluk %${obDolu(o.id)}</span></div>
+  <section class="card">
+    <div class="row between"><h3 style="margin:0">Tanıma formu fotoğrafları</h3><div class="row"><label class="btn sm" for="ob-foto">${icon('up')}Fotoğraf ekle</label><input type="file" id="ob-foto" data-in="ob-foto" accept="image/*" multiple hidden>${fot.length ? `<button class="btn primary sm" data-act="ob-ai" id="ob-ai-btn">Fotoğraftan oku (yapay zekâ)</button>` : ''}</div></div>
+    ${fot.length ? `<div class="row" style="margin-top:12px">${fot.map(x => `<button class="fcard" data-act="dz-open" data-id="${x.id}" style="width:120px"><div class="fthumb"><img data-fid="${esc(x.assetId)}" alt=""></div></button>`).join('')}</div>` : `<p class="note" style="margin-top:8px">Öğrencinin doldurduğu formun fotoğrafını çekin (birden çok sayfa olabilir). Ardından "Fotoğraftan oku" ile bilgiler aşağıya yazılır; kontrol edip düzeltebilirsiniz.</p>`}
+    ${Object.keys(hl).length ? `<p class="note" style="margin-top:10px;color:var(--ink)"><span class="aihl" style="padding:1px 6px;border-radius:4px">Sarı</span> alanlar formdan okundu. Fotoğrafla karşılaştırıp gerekirse düzeltin.</p>` : ''}
+  </section>
+  ${OB_GRUP.map(([g, alanlar]) => `<section class="card"><h3>${esc(g)}</h3><div class="fgrid">${alanlar.map(inp).join('')}</div></section>`).join('')}
+  <div class="row"><button class="btn primary" data-act="ob-yazdir">Tanıma formunu yazdır / PDF</button><button class="btn" data-act="ob-evrak" data-k="veligorusme">Veli görüşme formu oluştur</button><button class="btn" data-act="ob-evrak" data-k="gozlem">Gözlem formu oluştur</button>${f.veliTel ? `<a class="btn" href="tel:${esc(String(f.veliTel).replace(/[^\d+]/g, ''))}">Veliyi ara</a>` : ''}<span style="flex:1"></span><button class="btn danger" data-act="ob-sil">Bilgileri temizle</button></div>
+  <p class="note">Bilgiler yalnızca bu cihazda saklanır ve yazarken kaydedilir.</p>`;
+};
+
+/* ---- Sayfa: Oturma planı ---- */
+function opGet(sid) { return Store.get('oturma_' + sid) || { type:'oturma', sinifId:sid, sira:5, sutun:3, kisi:2, yer:{} }; }
+function opSave(op) { Store.put('oturma_' + op.sinifId, op); }
+function opSeats(op) { const k = []; for (let r = 0; r < op.sira; r++) for (let c = 0; c < op.sutun; c++) for (let i = 0; i < op.kisi; i++) k.push(`${r}-${c}-${i}`); return k; }
+function opLabel(o) { if (!o) return ''; const p = String(o.ad).trim().split(/\s+/); return p.length > 1 ? p.slice(0, -1).join(' ') + ' ' + p[p.length - 1][0] + '.' : o.ad; }
+PAGES.oturma = () => {
+  const s = Store.get(S.pid); if (!s) return `<div class="empty"><b>Sınıf bulunamadı</b></div>`;
+  const op = opGet(s.id); const ogr = s.ogr || []; const byId = Object.fromEntries(ogr.map(o => [o.id, o]));
+  const placed = new Set(Object.values(op.yer || {}).filter(id => byId[id])); const kalan = ogr.filter(o => !placed.has(o.id));
+  const sel = (id, label, val, max) => `<div class="field" style="width:110px"><label for="${id}">${label}</label><select class="inp" id="${id}" data-in="op-set" data-k="${id.slice(3)}">${Array.from({ length:max }, (_, i) => i + 1).map(n => `<option ${n === val ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
+  let desks = '';
+  for (let r = 0; r < op.sira; r++) for (let c = 0; c < op.sutun; c++) {
+    desks += `<div class="desk">${Array.from({ length:op.kisi }, (_, i) => { const key = `${r}-${c}-${i}`; const o = byId[(op.yer || {})[key]]; const g = o ? obF(o.id).cinsiyet : ''; return `<button class="seat${o ? ' on' : ''}${S.seat === key ? ' sel' : ''}${g === 'Kız' ? ' kiz' : g === 'Erkek' ? ' erkek' : ''}" data-act="op-seat" data-k="${key}">${o ? `<span class="num">${esc(o.no)}</span>${esc(opLabel(o))}` : '<span class="muted">boş</span>'}</button>`; }).join('')}</div>`;
+  }
+  return `<div><button class="btn ghost sm" data-act="nav" data-p="rehberlik">${icon('back')}Rehberlik · ${esc(s.ad)}</button></div>
+  <div class="pagehead"><div><h1>Oturma Planı · ${esc(s.ad)}</h1><p>Bir sıraya dokunup öğrenci seçin. Yerleşmiş bir öğrenciyi seçerseniz iki öğrencinin yeri değişir.</p></div>
+    <div class="row">${sel('op-sira', 'Sıra sayısı', op.sira, 10)}${sel('op-sutun', 'Sütun', op.sutun, 6)}${sel('op-kisi', 'Sırada kişi', op.kisi, 3)}</div></div>
+  <div class="row"><button class="btn" data-act="op-diz" data-k="rastgele">Rastgele yerleştir</button><button class="btn" data-act="op-diz" data-k="no">Numara sırasıyla</button><button class="btn" data-act="op-diz" data-k="karisik">Kız-erkek karışık</button><button class="btn danger" data-act="op-diz" data-k="temizle">Temizle</button><span style="flex:1"></span><button class="btn primary" data-act="op-yazdir">Yazdır / PDF</button></div>
+  <div class="tablewrap" style="padding:14px"><div class="board">TAHTA · ÖĞRETMEN MASASI</div>
+    <div class="desks" style="grid-template-columns:repeat(${op.sutun},minmax(${op.kisi * 82}px,1fr))">${desks}</div></div>
+  <p class="note">${placed.size}/${ogr.length} öğrenci yerleşti · ${op.sira * op.sutun * op.kisi} yer${kalan.length ? ` · Yerleşmeyenler: ${kalan.map(o => esc(o.ad)).join(', ')}` : ''}${ogr.some(o => obF(o.id).cinsiyet) ? '' : ' · Kız-erkek karışık yerleşim için öğrenci kartlarında cinsiyet bilgisi gerekir.'}</p>`;
+};
+
+/* ---- Yazdırılabilir formlar ve listeler ---- */
+function tanimaFormuHTML(p, s, o, f) {
+  f = f || {}; const val = k => esc(f[k] || '');
+  const satir = ([k, l, t, opts]) => `<tr><th style="width:38%">${esc(l)}</th><td>${t === 'sel' && !f[k] ? opts.filter(Boolean).map(x => '☐ ' + esc(x)).join('&nbsp;&nbsp;&nbsp;') : val(k)}${t === 'uzun' && !f[k] ? '<br><br>' : ''}</td></tr>`;
+  return `${baslik(p)}<h2 style="text-align:center">ÖĞRENCİ TANIMA FORMU</h2>
+  <table><tr><th style="width:38%">Öğrencinin adı soyadı</th><td>${esc(o ? o.ad : '')}</td></tr><tr><th>Sınıfı / Okul no</th><td>${esc(s ? sinifKisa(s.ad) : '')} / ${esc(o ? o.no : '')}</td></tr></table>
+  ${OB_GRUP.filter(g => g[0] !== 'Öğretmen notu').map(([g, al]) => `<h3>${esc(up(g))}</h3><table>${al.map(satir).join('')}</table>`).join('')}
+  <p style="font-size:10pt">Bu formdaki bilgiler yalnızca öğrencinin eğitim-öğretim sürecini desteklemek amacıyla sınıf rehber öğretmeni tarafından kullanılır ve gizli tutulur (6698 sayılı KVKK).</p>
+  ${imzaTablo(['…<br>Veli Adı Soyadı / İmza', `${esc(p.ad)}<br>${esc(s ? sinifKisa(s.ad) : '')} Sınıf Rehber Öğretmeni`])}`;
+}
+function rbListeHTML(k, p, s) {
+  const ogr = s.ogr || []; const h = t => `${baslik(p)}<h2 style="text-align:center">${esc(sinifKisa(s.ad))} SINIFI ${t}</h2>`;
+  if (k === 'veli') return h('VELİ İLETİŞİM LİSTESİ') + `<table><tr><th>No</th><th>Öğrenci</th><th>Veli</th><th>Yakınlık</th><th>Veli tel.</th><th>Anne tel.</th><th>Baba tel.</th></tr>${ogr.map(o => { const f = obF(o.id); return `<tr><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td>${esc(f.veliAd || '')}</td><td>${esc(f.veliYakinlik || '')}</td><td>${esc(f.veliTel || '')}</td><td>${esc(f.anneTel || '')}</td><td>${esc(f.babaTel || '')}</td></tr>`; }).join('')}</table><p style="font-size:10pt">Kişisel veri içerir; yalnızca okul içi kullanım içindir.</p>`;
+  if (k === 'dogum') { const rows = ogr.map(o => ({ o, d:obF(o.id).dogumTarihi || '' })).map(x => { const m = x.d.match(/(\d{1,2})[./-](\d{1,2})[./-]?(\d{2,4})?/); return { ...x, ay:m ? +m[2] : 99, gun:m ? +m[1] : 99 }; }).sort((a, b) => a.ay - b.ay || a.gun - b.gun);
+    return h('DOĞUM GÜNLERİ LİSTESİ') + `<table><tr><th>Ay</th><th>Doğum tarihi</th><th>No</th><th>Öğrenci</th></tr>${rows.map(x => `<tr><td>${x.ay < 13 ? ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'][x.ay - 1] : '—'}</td><td>${esc(x.d)}</td><td>${esc(x.o.no)}</td><td>${esc(x.o.ad)}</td></tr>`).join('')}</table>`; }
+  if (k === 'saglik') { const rows = ogr.filter(o => { const f = obF(o.id); return f.saglik || f.ozelDurum || f.gozlukIsitme; });
+    return h('SAĞLIK VE ÖZEL DURUM LİSTESİ') + (rows.length ? `<table><tr><th>No</th><th>Öğrenci</th><th>Sağlık durumu</th><th>Özel durum</th><th>Gözlük / işitme</th><th>Veli tel.</th></tr>${rows.map(o => { const f = obF(o.id); return `<tr><td>${esc(o.no)}</td><td>${esc(o.ad)}</td><td>${esc(f.saglik || '')}</td><td>${esc(f.ozelDurum || '')}</td><td>${esc(f.gozlukIsitme || '')}</td><td>${esc(f.veliTel || '')}</td></tr>`; }).join('')}</table>` : '<p>Kayıtlı sağlık veya özel durum bilgisi yok.</p>') + '<p style="font-size:10pt">Gizlidir. Yalnızca sınıfa giren öğretmenlerin bilgilendirilmesi amacıyla kullanılır.</p>'; }
+  return '';
+}
+function oturmaHTML(p, s, op) {
+  const byId = Object.fromEntries((s.ogr || []).map(o => [o.id, o])); let rows = '';
+  for (let r = 0; r < op.sira; r++) { rows += '<tr>'; for (let c = 0; c < op.sutun; c++) { rows += `<td style="padding:6px"><table style="margin:0"><tr>${Array.from({ length:op.kisi }, (_, i) => { const o = byId[(op.yer || {})[`${r}-${c}-${i}`]]; return `<td style="text-align:center;height:46px;width:${100 / op.kisi}%;font-size:10.5pt">${o ? `<b>${esc(o.no)}</b><br>${esc(o.ad)}` : ''}</td>`; }).join('')}</tr></table></td>`; } rows += '</tr>'; }
+  return `${baslik(p)}<h2 style="text-align:center">${esc(sinifKisa(s.ad))} SINIFI OTURMA PLANI</h2><p style="text-align:center;border:1px solid #000;padding:6px;font-weight:bold">TAHTA · ÖĞRETMEN MASASI</p><table style="border:none">${rows.replace(/<td style="padding:6px">/g, '<td style="padding:6px;border:none">')}</table>${imzaTablo([`${esc(p.ad)}<br>${esc(sinifKisa(s.ad))} Sınıf Rehber Öğretmeni`])}`;
+}
+function rbMufettisItems() {
+  const s = rehberSinif(); if (!s) return '';
+  const n = (s.ogr || []).filter(o => obDolu(o.id) > 0).length;
+  return `<button data-act="open-oturma" data-id="${s.id}"><span>${esc(s.ad)} oturma planı</span><small>${Store.get('oturma_' + s.id) ? 'hazır' : 'yok'}</small></button><button data-act="nav" data-p="rehberlik"><span>Öğrenci bilgi kartları ve tanıma formları</span><small>${n}/${(s.ogr || []).length}</small></button>`;
+}
+
+/* ---- Olaylar ---- */
+async function opDiz(kind) {
+  const s = Store.get(S.pid); const op = opGet(s.id); const seats = opSeats(op); let list = [...(s.ogr || [])];
+  if (kind === 'temizle') { op.yer = {}; opSave(op); render(); return; }
+  if (kind === 'no') list.sort((a, b) => (parseInt(a.no) || 1e9) - (parseInt(b.no) || 1e9));
+  else { for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } }
+  if (kind === 'karisik') { const kz = list.filter(o => obF(o.id).cinsiyet === 'Kız'), er = list.filter(o => obF(o.id).cinsiyet === 'Erkek'), dg = list.filter(o => !['Kız', 'Erkek'].includes(obF(o.id).cinsiyet)); list = []; while (kz.length || er.length) { if (kz.length) list.push(kz.shift()); if (er.length) list.push(er.shift()); } list.push(...dg); }
+  op.yer = {}; seats.forEach((k, i) => { if (list[i]) op.yer[k] = list[i].id; });
+  if (list.length > seats.length) toast(`${list.length - seats.length} öğrenciye yer kalmadı. Sıra sayısını artırın.`, 4500);
+  opSave(op); render();
+}
+Object.assign(ACT, {
+  'rb-git': b => { S.rbSinif = b.dataset.id; go('rehberlik'); },
+  'rb-sinif': b => { S.rbSinif = b.dataset.k; render(); },
+  'open-ogrenci': b => { closeModal(); S.aiHl = null; go('ogrenci', b.dataset.id); },
+  'open-oturma': b => { closeModal(); S.seat = null; go('oturma', b.dataset.id); },
+  'rb-bosform': () => printHTML('Öğrenci Tanıma Formu', tanimaFormuHTML(prof(), rbSinif(), null, null)),
+  'rb-adliform': () => { const s = rbSinif(); const p = prof(); printHTML(`${s.ad} Öğrenci Tanıma Formları`, (s.ogr || []).map((o, i) => `<div class="${i ? 'pb' : ''}">${tanimaFormuHTML(p, s, o, obF(o.id))}</div>`).join('')); },
+  'rb-liste': async b => { const s = rbSinif(); const p = prof(); const k = b.dataset.k;
+    if (k === 'ozet') { if (typeof XLSX === 'undefined') { toast('Excel modülü yüklenemedi.'); return; }
+      const aoa = [['No', 'Adı Soyadı', ...OB_ALAN.map(a => a[1])], ...(s.ogr || []).map(o => { const f = obF(o.id); return [o.no, o.ad, ...OB_ALAN.map(a => f[a[0]] || '')]; })];
+      const ws = XLSX.utils.aoa_to_sheet(aoa); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Öğrenci bilgileri');
+      await saveFile(safeName(s.ad + ' öğrenci bilgileri') + '.xlsx', new Blob([XLSX.write(wb, { type:'array', bookType:'xlsx' })], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); return; }
+    printHTML(s.ad + ' ' + b.textContent.trim(), rbListeHTML(k, p, s)); },
+  'ob-yazdir': () => { const r = findOgr(S.pid); printHTML(r.o.ad + ' Tanıma Formu', tanimaFormuHTML(prof(), r.s, r.o, obF(r.o.id))); },
+  'ob-sil': () => { const r = findOgr(S.pid); ask(`<b>${esc(r.o.ad)}</b> için girilen tüm bilgiler silinecek. Form fotoğrafları Dosyalar'da kalır.`, 'Bilgileri sil', () => { Store.remove(obId(r.o.id)); S.aiHl = null; render(); }); },
+  'ob-ai': async b => { const r = findOgr(S.pid); const ob = obGet(r.o.id) || {}; const fot = (ob.fotolar || []).map(id => Store.get(id)).filter(Boolean);
+    if (!fot.length) { toast('Önce form fotoğrafı ekleyin.'); return; }
+    if (!(ayar().aiKey || '').trim()) { aiAyarModal(); return; }
+    b.disabled = true; b.textContent = 'Okunuyor…';
+    try { const blobs = []; for (const x of fot.slice(-4)) { const bl = await Files.get(x.assetId); if (bl) blobs.push(bl); }
+      const d = await aiOku(blobs); const f = {}; const hl = {};
+      for (const [k] of OB_ALAN) { const v = String(d[k] || '').trim(); if (v) { f[k] = v; hl[k] = 1; } }
+      obSave(r.o.id, r.s.id, f); S.aiHl = hl; render();
+      const n = Object.keys(f).length; toast(n ? `${n} bilgi formdan okundu. Sarı alanları kontrol edin.` : 'Formda okunabilir bilgi bulunamadı.', 4500);
+      if (d.adSoyad && trNorm(d.adSoyad) && !trNorm(r.o.ad).split(' ').some(t => trNorm(d.adSoyad).split(' ').includes(t))) toast(`Dikkat: formdaki ad "${d.adSoyad}". Doğru öğrencinin kartında olduğunuzdan emin olun.`, 7000);
+    } catch (e) { toast(aiHata(e), 6000); b.disabled = false; b.textContent = 'Fotoğraftan oku (yapay zekâ)'; } },
+  'ob-evrak': b => { const r = findOgr(S.pid); const f = obF(r.o.id); const p = prof(); const sa = sinifKisa(r.s.ad); let html, baslikT, kat;
+    if (b.dataset.k === 'veligorusme') { kat = 'Veli'; baslikT = 'Veli Görüşme Formu · ' + r.o.ad;
+      html = `${baslik(p)}<h2 style="text-align:center">VELİ GÖRÜŞME FORMU</h2><table><tr><th>Öğrencinin adı soyadı</th><td>${esc(r.o.ad)}</td><th>Sınıfı / No</th><td>${esc(sa)} / ${esc(r.o.no)}</td></tr><tr><th>Görüşülen veli</th><td>${esc(f.veliAd || '')}</td><th>Yakınlığı</th><td>${esc(f.veliYakinlik || '')}</td></tr><tr><th>Veli telefonu</th><td>${esc(f.veliTel || '')}</td><th>Görüşme şekli</th><td>Yüz yüze / Telefon / Çevrim içi</td></tr><tr><th>Tarih / saat</th><td colspan="3">${todayStr()} · …:…</td></tr></table><h3>Görüşme nedeni</h3><p>…</p><h3>Görüşülen konular</h3><p>…</p><h3>Varılan sonuç ve öneriler</h3><p>…</p><h3>İzleme tarihi</h3><p>…/…/20…</p>${imzaTablo([`${esc(f.veliAd || '…')}<br>Veli`, `${esc(p.ad)}<br>${esc(sa)} Sınıf Rehber Öğretmeni`])}`; }
+    else { kat = 'Rehberlik'; baslikT = 'Öğrenci Gözlem Formu · ' + r.o.ad;
+      html = `${baslik(p)}<h2 style="text-align:center">ÖĞRENCİ GÖZLEM FORMU</h2><table><tr><th>Öğrencinin adı soyadı</th><td>${esc(r.o.ad)}</td><th>Sınıfı / No</th><td>${esc(sa)} / ${esc(r.o.no)}</td></tr><tr><th>Gözlem tarihi</th><td>${todayStr()}</td><th>Gözlem ortamı</th><td>Ders / Teneffüs / Etkinlik</td></tr>${f.saglik || f.ozelDurum ? `<tr><th>Bilinen sağlık / özel durum</th><td colspan="3">${esc([f.saglik, f.ozelDurum].filter(Boolean).join(' · '))}</td></tr>` : ''}</table><h3>Gözlenen davranış</h3><p>…</p><h3>Davranışın sıklığı ve süresi</h3><p>…</p><h3>Öğretmenin değerlendirmesi</h3><p>…</p><h3>Yapılan / önerilen çalışma</h3><p>…</p>${imzaTablo([`${esc(p.ad)}<br>${esc(sa)} Sınıf Rehber Öğretmeni`])}`; }
+    const id = rid('evrak'); Store.put(id, { type:'evrak', baslik:baslikT, kategori:kat, sinifId:r.s.id, html, olusturma:Date.now() }, true); go('evrak', id); },
+  'op-seat': b => { const s = Store.get(S.pid); const op = opGet(s.id); const key = b.dataset.k; const cur = (op.yer || {})[key]; S.seat = key;
+    const placedAt = Object.fromEntries(Object.entries(op.yer || {}).map(([k, v]) => [v, k]));
+    const list = [...(s.ogr || [])].sort((a, c) => (placedAt[a.id] ? 1 : 0) - (placedAt[c.id] ? 1 : 0));
+    openModal('Bu sıraya kim oturacak?', `<div class="list">${list.map(o => `<button class="li" data-act="op-pick" data-o="${o.id}"><span class="num muted" style="width:44px">${esc(o.no)}</span><span class="t"><b>${esc(o.ad)}</b><small>${placedAt[o.id] ? (o.id === cur ? 'şu an burada' : 'yerleşmiş · seçerseniz yer değiştirir') : 'yerleşmedi'}</small></span></button>`).join('')}</div>`,
+      `${cur ? '<button class="btn danger" data-act="op-pick" data-o="">Sırayı boşalt</button><span style="flex:1"></span>' : ''}<button class="btn" data-act="modal-close">Vazgeç</button>`); },
+  'op-pick': b => { const s = Store.get(S.pid); const op = opGet(s.id); op.yer = op.yer || {}; const key = S.seat; const oid = b.dataset.o;
+    if (!oid) delete op.yer[key];
+    else { const from = Object.keys(op.yer).find(k => op.yer[k] === oid); const prev = op.yer[key]; op.yer[key] = oid; if (from && from !== key) { if (prev) op.yer[from] = prev; else delete op.yer[from]; } }
+    S.seat = null; opSave(op); closeModal(); render(); },
+  'op-diz': b => { const k = b.dataset.k; const op = opGet(S.pid); if (Object.keys(op.yer || {}).length && k !== 'temizle') ask('Mevcut yerleşim değiştirilecek.', 'Yeniden yerleştir', () => opDiz(k)); else if (k === 'temizle') ask('Tüm yerleşim silinecek.', 'Temizle', () => opDiz(k)); else opDiz(k); },
+  'op-yazdir': () => { const s = Store.get(S.pid); printHTML(s.ad + ' Oturma Planı', oturmaHTML(prof(), s, opGet(s.id))); },
+  'rb-toplu': () => {
+    const s = rbSinif(); if (!s || !(s.ogr || []).length) { toast('Önce sınıf listesini yükleyin.'); return; }
+    if (!(ayar().aiKey || '').trim()) { aiAyarModal(); return; }
+    S.bulk = { sinifId:s.id, items:[] };
+    openModal('Tanıma formlarını toplu oku', `<p class="note">Her öğrencinin formunun bir fotoğrafını seçin (galeriden çoklu seçebilirsiniz). Uygulama her formu okuyup ad ve numaraya göre öğrenciyle eşleştirir. Kaydetmeden önce eşleşmeleri kontrol edin.</p>
+      <div class="field"><label for="bk-file">Form fotoğrafları</label><input class="inp" type="file" id="bk-file" data-in="bk-file" accept="image/*" multiple></div><div id="bk-rows"></div>`,
+      `<button class="btn" data-act="modal-close">Kapat</button><button class="btn primary" data-act="bk-go" id="bk-go">Oku</button>`, true); },
+  'bk-go': async b => {
+    const B = S.bulk; if (!B || !B.items.length) { toast('Önce fotoğraf seçin.'); return; }
+    const s = Store.get(B.sinifId);
+    if (B.ready) { // kaydet
+      let n = 0;
+      for (let i = 0; i < B.items.length; i++) { const it = B.items[i]; const oid = $('#bk-m-' + i) ? $('#bk-m-' + i).value : it.match; if (!oid || it.st !== 'ok') continue;
+        const o = (s.ogr || []).find(x => x.id === oid); const fid = rid('f'); await IDB.put('files', fid, it.blob);
+        const did = rid('dosya'); Store.put(did, { type:'dosya', ad:`Tanıma formu - ${o.ad}.jpg`, klasor:rehberKlasor(), assetId:fid, ct:'image/jpeg', ext:'jpg', b64:false, orjTip:'image/jpeg', boyut:it.blob.size, tarih:Date.now() }, true);
+        const ob = obGet(oid) || {}; obSave(oid, s.id, it.data, [...(ob.fotolar || []), did]); it.st = 'kayit'; n++; }
+      closeModal(); toast(`${n} öğrencinin bilgileri kaydedildi.`, 4000); render(); return; }
+    b.disabled = true;
+    for (let i = 0; i < B.items.length; i++) { const it = B.items[i]; if (it.st === 'ok') continue; const st = $('#bk-s-' + i); st.textContent = 'okunuyor…';
+      let tries = 0;
+      while (true) { try { const d = await aiOku([it.blob]); const f = {}; for (const [k] of OB_ALAN) { const v = String(d[k] || '').trim(); if (v) f[k] = v; }
+          it.data = f; it.ad = d.adSoyad || ''; it.no = d.okulNo || ''; it.match = matchOgr(s, it.ad, it.no); it.st = 'ok';
+          st.innerHTML = `${esc(it.ad || 'ad okunamadı')}${it.no ? ' · ' + esc(it.no) : ''} · ${Object.keys(f).length} bilgi`; st.style.color = 'var(--ok)';
+          const sel = $('#bk-m-' + i); sel.value = it.match; sel.disabled = false; break; }
+        catch (e) { if (e && e.code === 429 && tries++ < 2) { st.textContent = 'sınır doldu, bekleniyor…'; await new Promise(r => setTimeout(r, 30000)); continue; } it.st = 'err'; st.textContent = aiHata(e); st.style.color = 'var(--red)'; if (e && (e.code === 'nokey' || e.code === 400 || e.code === 403 || e.code === 'net')) { b.disabled = false; return; } break; } }
+      await new Promise(r => setTimeout(r, 1200)); }
+    b.disabled = false; if (B.items.some(x => x.st === 'ok')) { B.ready = true; b.textContent = 'Eşleşenleri kaydet'; toast('Okuma bitti. Eşleşmeleri kontrol edip kaydedin.', 4500); } else b.textContent = 'Tekrar dene';
+  },
+  'ai-ayar': () => aiAyarModal(),
+  'ai-save': () => { const a = ayar(); Store.put('ayar', { ...a, type:'ayar', aiKey:$('#ai-key').value.trim(), aiModel:$('#ai-model').value.trim() || 'gemini-2.5-flash' }, true); closeModal(); toast('Yapay zekâ ayarı kaydedildi.'); },
+  'ai-test': async b => { const a = ayar(); const key = $('#ai-key').value.trim(); const model = $('#ai-model').value.trim() || 'gemini-2.5-flash'; if (!key) { toast('Anahtarı yapıştırın.'); return; }
+    b.disabled = true; const st = $('#ai-st'); st.textContent = 'Deneniyor…';
+    try { const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key':key }, body:JSON.stringify({ contents:[{ parts:[{ text:'Sadece "tamam" yaz.' }] }] }) });
+      if (r.ok) { st.textContent = 'Anahtar çalışıyor ✓'; st.style.color = 'var(--ok)'; } else { let m = ''; try { m = (await r.json()).error.message; } catch (e) {} st.textContent = 'Çalışmadı: ' + (m || r.status); st.style.color = 'var(--red)'; } }
+    catch (e) { st.textContent = 'İnternet bağlantısı yok.'; st.style.color = 'var(--red)'; }
+    b.disabled = false; }
+});
+function aiAyarModal() {
+  const a = ayar();
+  openModal('Yapay zekâ ile form okuma', `
+    <p>Fotoğraftaki el yazısını okumak için Google'ın Gemini yapay zekâsı kullanılır. Bunun için bir kez anahtar almanız gerekir.</p>
+    <div class="banner"><b>Öğrenci gizliliği:</b> Google'ın ücretsiz katmanında gönderilen fotoğraflar Google tarafından incelenebilir ve kişisel veri gönderilmesine izin verilmez. Öğrenci formları için Google AI Studio'da <b>faturalandırması açık</b> bir proje kullanın; ücretli katmanda veriler ürün geliştirmede kullanılmaz. Maliyeti form başına yaklaşık birkaç kuruştur.</div>
+    <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+      <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> adresini açın, Google hesabınızla girin.</li>
+      <li>"Create API key" (API anahtarı oluştur) düğmesine basın, anahtarı kopyalayın.</li>
+      <li>Aynı sayfada projenin faturalandırmasını açın ("Set up billing").</li>
+      <li>Anahtarı aşağıya yapıştırıp "Dene"ye basın.</li></ol>
+    <div class="field"><label for="ai-key">API anahtarı</label><input class="inp mono" id="ai-key" value="${esc(a.aiKey || '')}" placeholder="AIza…" autocomplete="off"></div>
+    <div class="field"><label for="ai-model">Model</label><input class="inp mono" id="ai-model" value="${esc(a.aiModel || 'gemini-2.5-flash')}"></div>
+    <p class="note" id="ai-st">Anahtar yalnızca bu cihazda saklanır, yedek dosyasına da girer.</p>`,
+    `<button class="btn" data-act="ai-test">Dene</button><span style="flex:1"></span><button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="ai-save">Kaydet</button>`, true);
+}
+document.addEventListener('input', e => {
+  const el = e.target; const k = el.dataset && el.dataset.in; if (!k) return;
+  if (k === 'ob') { const r = findOgr(S.pid); if (!r) return; obSave(r.o.id, r.s.id, { [el.dataset.k]:el.value }); el.classList.remove('aihl'); if (S.aiHl) delete S.aiHl[el.dataset.k]; }
+  else if (k === 'obn') { const r = findOgr(S.pid); if (!r) return; const s = Store.get(r.s.id); Store.put(s.id, { ...s, ogr:(s.ogr || []).map(o => o.id === r.o.id ? { ...o, [el.dataset.f]:el.value } : o) }); }
+});
+document.addEventListener('change', async e => {
+  const el = e.target; const k = el.dataset && el.dataset.in; if (!k) return;
+  if (k === 'op-set') { const op = opGet(S.pid); op[el.dataset.k] = +el.value; const valid = new Set(opSeats(op)); for (const key of Object.keys(op.yer || {})) if (!valid.has(key)) delete op.yer[key]; opSave(op); render(); }
+  else if (k === 'ob-foto') { const r = findOgr(S.pid); const files = [...el.files]; if (!files.length) return; toast('Fotoğraflar ekleniyor…');
+    const ob = obGet(r.o.id) || {}; const ids = [...(ob.fotolar || [])];
+    for (const [i, f] of files.entries()) { const bl = await shrinkTo(f, 2200); const up2 = await Files.upload(bl); const did = rid('dosya'); Store.put(did, { type:'dosya', ad:`Tanıma formu - ${r.o.ad}${files.length > 1 || ids.length ? ' (' + (ids.length + 1) + ')' : ''}.jpg`, klasor:rehberKlasor(), assetId:up2.id, ct:'image/jpeg', ext:'jpg', b64:false, orjTip:'image/jpeg', boyut:bl.size, tarih:Date.now() }, true); ids.push(did); }
+    obSave(r.o.id, r.s.id, {}, ids); render();
+    if ((ayar().aiKey || '').trim()) { const btn = $('#ob-ai-btn'); if (btn) ACT['ob-ai'](btn); } else toast('Fotoğraf eklendi. Bilgileri otomatik okumak için yapay zekâ anahtarı ekleyin (Profil).', 5000); }
+  else if (k === 'bk-file') { const B = S.bulk; const s = Store.get(B.sinifId); B.items = [];
+    for (const f of el.files) B.items.push({ blob:await shrinkTo(f, 2200), name:f.name, st:'' });
+    $('#bk-rows').innerHTML = B.items.map((it, i) => `<div class="uprow" style="grid-template-columns:56px minmax(0,1fr) 190px"><img id="bk-i-${i}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px"><span class="st" id="bk-s-${i}">${esc(it.name)} · okunmayı bekliyor</span><select class="inp" id="bk-m-${i}" disabled aria-label="Öğrenci"><option value="">Eşleşme yok (atla)</option>${(s.ogr || []).map(o => `<option value="${o.id}">${esc(o.no)} ${esc(o.ad)}</option>`).join('')}</select></div>`).join('');
+    B.items.forEach((it, i) => { $('#bk-i-' + i).src = URL.createObjectURL(it.blob); }); const g = $('#bk-go'); g.textContent = 'Oku'; }
+});
 
 /* ===================== Başlangıç ===================== */
 async function boot() {
