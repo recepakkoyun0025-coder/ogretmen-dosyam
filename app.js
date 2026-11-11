@@ -449,7 +449,7 @@ PAGES.cizelge = () => {
       <td class="sum" id="sum-${o.id}">${czRowSum(c, o.id)}</td></tr>`).join('')}
     </tbody><tfoot><tr><td class="sticky" style="text-align:left">Sınıf</td>${c.cols.map(col => `<td id="st-${col.id}">${czColStat(c, col, ogr)}</td>`).join('')}<td></td></tr></tfoot></table></div>
   ${!c.cols.length ? `<div class="empty"><b>Henüz sütun yok</b><span>"Bugünün sütunu" ile tarihli bir ödev/katılım sütunu ekleyin ya da kendi ölçütünüzü oluşturun.</span></div>` : ''}`}
-  <div class="row"><button class="btn" data-act="cz-xlsx">${icon('down')}Excel olarak indir</button><button class="btn" data-act="cz-print">Yazdır / PDF</button><button class="btn" data-act="cz-html">${icon('down')}HTML indir</button><span style="flex:1"></span><button class="btn danger" data-act="cz-del">${icon('trash')}Çizelgeyi sil</button></div>`;
+  <div class="row"><button class="btn" data-act="pk-cizelge">Şablon olarak gönder</button><button class="btn" data-act="cz-xlsx">${icon('down')}Excel olarak indir</button><button class="btn" data-act="cz-print">Yazdır / PDF</button><button class="btn" data-act="cz-html">${icon('down')}HTML indir</button><span style="flex:1"></span><button class="btn danger" data-act="cz-del">${icon('trash')}Çizelgeyi sil</button></div>`;
 };
 
 /* ---- Evraklar ---- */
@@ -457,7 +457,7 @@ PAGES.evraklar = () => {
   const all = evraklar(); const q = low(S.evQ);
   const list = all.filter(e => (S.evFilter === 'hepsi' || e.kategori === S.evFilter) && (!q || low(e.baslik).includes(q)));
   return `${banner()}
-  <div class="pagehead"><div><h1>Evraklar</h1><p>Okul bilgileriniz ve öğrenci adları hazır doldurulmuş tutanak, plan ve formlar. Düzenleyin, kaydedin, Word'de açılabilen veya yazdırılabilen dosya olarak indirin.</p></div></div>
+  <div class="pagehead"><div><h1>Evraklar</h1><p>Okul bilgileriniz ve öğrenci adları hazır doldurulmuş tutanak, plan ve formlar. Düzenleyin, kaydedin, Word'de açılabilen veya yazdırılabilen dosya olarak indirin. Zümre arkadaşlarınızla belge alıp verebilirsiniz.</p></div><div class="row"><button class="btn" data-act="pk-ac-btn">${icon('up')}Gelen dosyayı aç</button><button class="btn" data-act="pk-toplu">Belgeleri paylaş</button></div></div>
   <div><h2 style="margin-bottom:12px">Yeni belge oluştur</h2>
   <div class="grid" style="gap:8px">${KATEGORI.filter(k => EV_TPL.some(t => t.kat === k)).map(k => `<details class="card" style="padding:12px 16px"><summary style="cursor:pointer;font-weight:600">${esc(k)} <span class="pill">${EV_TPL.filter(t => t.kat === k).length}</span></summary><div class="grid g3" style="margin-top:12px">${EV_TPL.filter(t => t.kat === k).map(t => `<button class="tpl" data-act="ev-new" data-k="${t.k}"><b>${esc(t.ad)}</b><small>${esc(t.not)}</small></button>`).join('')}</div></details>`).join('')}</div></div>
   <div><div class="row between" style="margin-bottom:12px"><h2>Belgelerim</h2><div class="search">${icon('search')}<input class="inp" id="ev-q" data-in="ev-q" placeholder="Belge ara" value="${esc(S.evQ)}"></div></div>
@@ -485,7 +485,7 @@ PAGES.evrak = () => {
     <button class="btn sm" data-act="ev-row">+ Tablo satırı</button><button class="btn sm" data-act="ev-list">+ Öğrenci listesi</button>
   </div>
   <div class="docview"><div class="sheet" id="ev-sheet" contenteditable="true" spellcheck="true" lang="tr">${e.html || '<p></p>'}</div></div>
-  <div class="row"><button class="btn primary" data-act="ev-print">Yazdır / PDF</button><button class="btn" data-act="ev-dl">${icon('down')}İndir (Word'de açılır)</button><button class="btn" data-act="ev-copy">Kopyasını oluştur</button><span style="flex:1"></span><button class="btn danger" data-act="ev-del">${icon('trash')}Belgeyi sil</button></div>
+  <div class="row"><button class="btn primary" data-act="ev-print">Yazdır / PDF</button><button class="btn" data-act="ev-dl">${icon('down')}İndir (Word'de açılır)</button><button class="btn" data-act="pk-evrak">Meslektaşa gönder</button><button class="btn" data-act="ev-copy">Kopyasını oluştur</button><span style="flex:1"></span><button class="btn danger" data-act="ev-del">${icon('trash')}Belgeyi sil</button></div>
   <p class="note">Değişiklikler yazarken otomatik kaydedilir. "Yazdır / PDF" ile yazıcıya gönderebilir veya PDF olarak kaydedebilirsiniz.</p>`;
 };
 
@@ -780,7 +780,7 @@ async function dzOpen(id) {
     <div class="fgrid"><div class="field"><label for="dz-ad">Dosya adı</label><input class="inp" id="dz-ad" value="${esc(f.ad)}"></div>
     <div class="field"><label for="dz-kl">Klasör</label><select class="inp" id="dz-kl">${klasorler().map(k => `<option ${k === f.klasor ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select></div></div>
     <p class="note">${fmtSize(f.boyut || 0)} · yüklenme ${fmtD(f.tarih)}</p>`,
-    `<button class="btn danger" data-act="dz-del" data-id="${f.id}">${icon('trash')}Sil</button><span style="flex:1"></span><button class="btn" data-act="dz-dl" data-id="${f.id}">${icon('down')}İndir</button><button class="btn primary" data-act="dz-save" data-id="${f.id}">Kaydet</button>`, true);
+    `<button class="btn danger" data-act="dz-del" data-id="${f.id}">${icon('trash')}Sil</button><span style="flex:1"></span><button class="btn" data-act="dz-paylas" data-id="${f.id}">Paylaş</button><button class="btn" data-act="dz-dl" data-id="${f.id}">${icon('down')}İndir</button><button class="btn primary" data-act="dz-save" data-id="${f.id}">Kaydet</button>`, true);
   if (img || vid || pdf) { hydrate($('#modal')); return; }
   const box = $('#dz-prev');
   try {
@@ -793,6 +793,7 @@ async function dzOpen(id) {
 
 /* ===================== İndirme ===================== */
 async function saveFile(filename, data) {
+  filename = String(filename).replace(/[çğıöşüÇĞİÖŞÜâîûÂÎÛ]/g, c => ({ ç:'c', ğ:'g', ı:'i', ö:'o', ş:'s', ü:'u', Ç:'C', Ğ:'G', İ:'I', Ö:'O', Ş:'S', Ü:'U', â:'a', î:'i', û:'u', Â:'A', Î:'I', Û:'U' }[c])).replace(/[^\w.\- ()]+/g, '-').replace(/-+/g, '-');
   const type = /\.html$/.test(filename) ? 'text/html;charset=utf-8' : /\.json$/.test(filename) ? 'application/json' : 'application/octet-stream';
   const blob = data instanceof Blob ? data : new Blob([data], { type });
   const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
@@ -1564,7 +1565,7 @@ PAGES.sinav = () => {
   const x = Store.get(S.pid); if (!x) return '<div class="empty"><b>Sınav bulunamadı</b></div>'; const st = svStat(x); const { ogr } = st;
   return `<div><button class="btn ghost sm" data-act="nav" data-p="sinavlar">${icon('back')}Sınav analizleri</button></div>
   <div class="pagehead"><div style="flex:1;min-width:min(100%,280px)"><input class="inp" id="sv-ad" data-in="sv-ad" value="${esc(x.ad)}" style="font-family:var(--f-disp);font-size:21px;font-weight:700"><p>${esc(st.s ? st.s.ad : '')} · ${ogr.length} öğrenci · toplam ${st.max} puan</p></div>
-    <div class="row"><button class="btn primary" data-act="sv-rapor">Analiz raporu yazdır</button><button class="btn" data-act="sv-excel">${icon('down')}Excel</button></div></div>
+    <div class="row"><button class="btn primary" data-act="sv-rapor">Analiz raporu yazdır</button><button class="btn" data-act="pk-sinav">Şablon olarak gönder</button><button class="btn" data-act="sv-excel">${icon('down')}Excel</button></div></div>
   <div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat"><b>${Math.round(st.ort * 10) / 10}</b><span>Ortalama</span></div><div class="stat"><b>${st.en}</b><span>En yüksek</span></div><div class="stat"><b>${st.ek}</b><span>En düşük</span></div><div class="stat"><b>${st.basarili}/${st.girilen.length}</b><span>%50 ve üstü</span></div></div>
   <div class="tablewrap"><table class="t" id="sv-t"><thead><tr><th class="sticky">Öğrenci</th>${x.sorular.map((q, i) => `<th class="colh" data-act="sv-soru" data-i="${i}">S${i + 1}<span class="tp">${q.p} p${q.ck ? ' · ' + esc(q.ck) : ''}</span></th>`).join('')}<th>Toplam</th></tr></thead><tbody>
   ${ogr.map(o => `<tr><td class="sticky nm"><span class="num muted" style="font-size:12px">${esc(o.no)}</span> ${esc(o.ad)}</td>${x.sorular.map((q, i) => `<td><input id="sv-${o.id}-${i}" data-in="sv-p" data-o="${o.id}" data-i="${i}" inputmode="decimal" value="${esc(((x.puan || {})[o.id] || [])[i] ?? '')}" style="min-width:44px"></td>`).join('')}<td class="sum" id="svt-${o.id}">${((x.puan || {})[o.id] || []).some(v => v !== '' && v != null) ? st.top(o) : ''}</td></tr>`).join('')}
@@ -1705,6 +1706,64 @@ PAGES.mufettis = () => {
     </div></div>`;
 };
 
+/* ===================== Meslektaşlarla paylaşma (paket dosyaları) ===================== */
+function kisiAdlari() { const set = new Set(); for (const s of siniflar()) for (const o of s.ogr || []) { if (o.ad && o.ad.trim().length > 3) set.add(o.ad.trim()); const f = obF(o.id); for (const k of ['veliAd','anneAd','babaAd']) if (f[k] && f[k].trim().length > 3) set.add(f[k].trim()); for (const k of ['veliTel','anneTel','babaTel']) if (f[k] && f[k].replace(/\D/g, '').length >= 7) set.add(f[k].trim()); } return [...set].sort((a, b) => b.length - a.length); }
+function kisiVarMi(html) { return kisiAdlari().some(n => html.includes(esc(n)) || html.includes(n)); }
+function kisiCikar(html) { for (const n of kisiAdlari()) { html = html.split(esc(n)).join('…').split(n).join('…'); } return html; }
+async function paketGonder(baslikT, oge) {
+  const p = prof(); const json = JSON.stringify({ app:'ogretmen-dosyam', tur:'paket', surum:1, gonderen:p.ad, okul:p.okul, tarih:Date.now(), oge });
+  const ad = safeName(baslikT).replace(/\s+/g, '-').slice(0, 60) + '.odpaket.json';
+  const file = new File([json], ad, { type:'application/json' });
+  const text = `${p.ad} size Öğretmen Dosyam'dan "${baslikT}" gönderdi. Dosyayı uygulamada Evraklar › "Gelen dosyayı aç" ile açın. Uygulama: ${location.origin + location.pathname}`;
+  try { if (navigator.canShare && navigator.canShare({ files:[file] })) { await navigator.share({ files:[file], title:baslikT, text }); return; } }
+  catch (e) { if (e && e.name === 'AbortError') return; }
+  await saveFile(ad, file); toast('Dosya indirildi. WhatsApp veya e-postayla gönderebilirsiniz.', 4500);
+}
+const ogeEvrak = (e, temiz) => ({ tur:'evrak', baslik:e.baslik, kategori:e.kategori, sablon:e.sablon || '', html:temiz ? kisiCikar(e.html || '') : (e.html || '') });
+function evrakPaylas(list) {
+  const kisi = list.some(e => kisiVarMi(e.html || ''));
+  const baslikT = list.length === 1 ? list[0].baslik : `${list.length} belge`;
+  if (!kisi) { paketGonder(baslikT, list.map(e => ogeEvrak(e, false))); return; }
+  S.pkList = list.map(e => e.id);
+  openModal('Öğrenci bilgisi içeriyor', `<p>Paylaşacağınız belgede öğrenci ya da veli adları, telefonları var. Kişisel veriler (KVKK) nedeniyle bunları çıkararak paylaşmanızı öneririm; adların yerine "…" yazılır.</p>`,
+    `<button class="btn" data-act="pk-ev-git" data-k="0">Olduğu gibi paylaş</button><button class="btn primary" data-act="pk-ev-git" data-k="1">Adları çıkararak paylaş</button>`);
+}
+async function pkAc(text) {
+  let j; try { j = JSON.parse(text); } catch (e) { toast('Dosya okunamadı.'); return; }
+  if (j && j.kayitlar) { toast('Bu bir yedek dosyası. Profil › "Yedekten geri yükle" ile açın.', 5000); return; }
+  if (!j || j.app !== 'ogretmen-dosyam' || !Array.isArray(j.oge) || !j.oge.length) { toast('Bu dosya Öğretmen Dosyam paylaşım dosyası değil.', 4500); return; }
+  S.pkGelen = j; const sn = siniflar(); const sinifLazim = j.oge.some(o => o.tur !== 'evrak');
+  const tAd = { evrak:'Belge', 'cizelge-sablon':'Çizelge şablonu', 'sinav-sablon':'Sınav şablonu' };
+  openModal('Gelen dosya', `<p><b>${esc(j.gonderen || 'Bir meslektaşınız')}</b>${j.okul ? ' (' + esc(j.okul) + ')' : ''} · ${fmtD(j.tarih)}</p>
+    <div class="list">${j.oge.map((o, i) => `<label class="li" style="cursor:pointer"><input type="checkbox" id="pk-g-${i}" checked><span class="t"><b>${esc(o.baslik || o.ad || 'Adsız')}</b><small>${tAd[o.tur] || o.tur}${o.kategori ? ' · ' + esc(o.kategori) : ''}${o.cols ? ' · ' + o.cols.length + ' sütun' : ''}${o.sorular ? ' · ' + o.sorular.length + ' soru' : ''}</small></span></label>`).join('')}</div>
+    ${sinifLazim ? (sn.length ? `<div class="field"><label for="pk-s">Çizelge ve sınavlar hangi sınıfınıza uygulansın?</label><select class="inp" id="pk-s">${sn.map(s => `<option value="${s.id}">${esc(s.ad)}</option>`).join('')}</select></div>` : '<p class="note" style="color:var(--red)">Çizelge ve sınav şablonları için önce sınıf listesi yükleyin.</p>') : ''}`,
+    `<button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="pk-al">Uygulamama al</button>`);
+}
+Object.assign(ACT, {
+  'pk-evrak': () => { evFlush(); const e = S.edit.d; evrakPaylas([{ ...e, id:S.edit.id }]); },
+  'pk-ev-git': b => { const list = (S.pkList || []).map(id => Store.get(id)).filter(Boolean); const temiz = b.dataset.k === '1'; closeModal(); paketGonder(list.length === 1 ? list[0].baslik : `${list.length} belge`, list.map(e => ogeEvrak(e, temiz))); },
+  'pk-cizelge': () => { const c = S.edit.d; paketGonder(c.ad + ' (şablon)', [{ tur:'cizelge-sablon', ad:c.ad.replace(/\s·\s[^·]+$/, ''), sablon:c.sablon || '', cols:(c.cols || []).map(x => ({ ad:x.ad, tip:x.tip })) }]); },
+  'pk-sinav': () => { const x = Store.get(S.pid); paketGonder(x.ad + ' (şablon)', [{ tur:'sinav-sablon', ad:x.ad.replace(/\s·\s[^·]+$/, ''), sorular:(x.sorular || []).map(q => ({ p:q.p, ck:q.ck || '' })) }]); },
+  'pk-toplu': () => { const ev = evraklar(); if (!ev.length) { toast('Paylaşılacak belge yok.'); return; }
+    openModal('Belgeleri paylaş', `<p class="note">Zümre tutanağı, plan, performans görevi gibi belgeleri seçin; tek dosya hâlinde gönderilir. Alan kişi kendi uygulamasına tek dokunuşla alır.</p><div class="list">${ev.map(e => `<label class="li" style="cursor:pointer"><input type="checkbox" class="pk-sec" value="${e.id}"><span class="t"><b>${esc(e.baslik)}</b><small>${esc(e.kategori)} · ${fmtD(e.guncelleme)}</small></span></label>`).join('')}</div>`,
+      `<button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="pk-toplu-git">Paylaş</button>`); },
+  'pk-toplu-git': () => { const ids = $$('.pk-sec').filter(x => x.checked).map(x => x.value); if (!ids.length) { toast('En az bir belge seçin.'); return; } closeModal(); evrakPaylas(ids.map(id => Store.get(id)).filter(Boolean)); },
+  'pk-al': () => { const j = S.pkGelen; if (!j) return; const sid = $('#pk-s') ? $('#pk-s').value : ''; let n = 0, ilk = null;
+    j.oge.forEach((o, i) => { if (!$('#pk-g-' + i).checked) return;
+      if (o.tur === 'evrak') { const id = rid('evrak'); Store.put(id, { type:'evrak', baslik:(o.baslik || 'Belge') + ` (${j.gonderen || 'paylaşılan'})`, kategori:KATEGORI.includes(o.kategori) ? o.kategori : 'Diğer', sablon:o.sablon || '', sinifId:'', html:String(o.html || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, ''), olusturma:Date.now() }, true); n++; ilk = ilk || ['evrak', id]; }
+      else if (o.tur === 'cizelge-sablon' && sid) { const s = Store.get(sid); const id = rid('cizelge'); Store.put(id, { type:'cizelge', ad:(o.ad || 'Çizelge') + ' · ' + s.ad, sinifId:sid, sablon:o.sablon || 'bos', cols:(o.cols || []).map(c => ({ id:rid('c'), ad:String(c.ad || ''), tip:TIP[c.tip] ? c.tip : 'check' })), v:{}, olusturma:Date.now() }, true); n++; ilk = ilk || ['cizelge', id]; }
+      else if (o.tur === 'sinav-sablon' && sid) { const s = Store.get(sid); const id = rid('sinav'); Store.put(id, { type:'sinav', ad:(o.ad || 'Sınav') + ' · ' + s.ad, sinifId:sid, sorular:(o.sorular || []).map(q => ({ p:+q.p || 10, ck:String(q.ck || '') })), puan:{}, tarih:Date.now() }, true); n++; ilk = ilk || ['sinav', id]; } });
+    closeModal(); S.pkGelen = null; toast(n ? `${n} öğe uygulamanıza alındı.` : 'Hiçbir öğe alınmadı.', 4000); if (n === 1 && ilk) go(ilk[0], ilk[1]); else render(); },
+  'pk-ac-btn': () => $('#pk-file').click(),
+  'dz-paylas': async b => { const f = Store.get(b.dataset.id); try { const bl = await fetchAsset(f); let n = f.ad; if (f.ext && !low(n).endsWith('.' + f.ext)) n += '.' + f.ext; const file = new File([bl], n, { type:bl.type || f.ct || 'application/octet-stream' });
+      if (navigator.canShare && navigator.canShare({ files:[file] })) await navigator.share({ files:[file], title:n }); else await saveFile(n, file); } catch (e) { if (!(e && e.name === 'AbortError')) toast('Paylaşılamadı.'); } }
+});
+document.addEventListener('change', async e => { const el = e.target; if (el.id === 'pk-file' && el.files[0]) { const t = await el.files[0].text(); el.value = ''; pkAc(t); } });
+async function paylasilanVarMi() {
+  if (!/paylasim=1/.test(location.search)) return;
+  try { const c = await caches.open('od-share'); const r = await c.match('./_paylasilan'); history.replaceState(null, '', location.pathname); if (!r) return; const t = await r.text(); await c.delete('./_paylasilan'); pkAc(t); } catch (e) {}
+}
+
 /* ===================== Başlangıç ===================== */
 async function boot() {
   try { await IDB.open(); Store.items = new Map(await IDB.all('items')); }
@@ -1712,7 +1771,7 @@ async function boot() {
   // Eski sürümün bu cihazdaki kayıtlarını taşı
   if (!S.idbFail && !Store.items.size) { try { const raw = localStorage.getItem('od_local'); if (raw) for (const [id, d] of JSON.parse(raw)) Store.put(id, d, true); } catch (e) {} }
   Store.mode = 'ready'; Store.assets = Files; seedIfEmpty(); migrateKlasor(); S.ready = true;
-  shell(); render(); setSync(Store.dirty.size ? 'busy' : 'ok');
+  shell(); render(); setSync(Store.dirty.size ? 'busy' : 'ok'); paylasilanVarMi();
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
 }
 async function usage() { try { if (!navigator.storage || !navigator.storage.estimate) return; const u = await navigator.storage.estimate(); const el = $('#dz-usage'); if (el) el.textContent = `Bu cihazda kullanılan alan: ${fmtSize(u.usage || 0)} · kullanılabilir: yaklaşık ${fmtSize(u.quota || 0)}`; } catch (e) {} }
