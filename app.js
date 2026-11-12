@@ -1567,12 +1567,13 @@ PAGES.sinav = () => {
   <div class="pagehead"><div style="flex:1;min-width:min(100%,280px)"><input class="inp" id="sv-ad" data-in="sv-ad" value="${esc(x.ad)}" style="font-family:var(--f-disp);font-size:21px;font-weight:700"><p>${esc(st.s ? st.s.ad : '')} · ${ogr.length} öğrenci · toplam ${st.max} puan</p></div>
     <div class="row"><button class="btn primary" data-act="sv-rapor">Analiz raporu yazdır</button><button class="btn" data-act="pk-sinav">Şablon olarak gönder</button><button class="btn" data-act="sv-excel">${icon('down')}Excel</button></div></div>
   <div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="stat"><b>${Math.round(st.ort * 10) / 10}</b><span>Ortalama</span></div><div class="stat"><b>${st.en}</b><span>En yüksek</span></div><div class="stat"><b>${st.ek}</b><span>En düşük</span></div><div class="stat"><b>${st.basarili}/${st.girilen.length}</b><span>%50 ve üstü</span></div></div>
+  ${anahtarKart(x)}
   <div class="tablewrap"><table class="t" id="sv-t"><thead><tr><th class="sticky">Öğrenci</th>${x.sorular.map((q, i) => `<th class="colh" data-act="sv-soru" data-i="${i}">S${i + 1}<span class="tp">${q.p} p${q.ck ? ' · ' + esc(q.ck) : ''}</span></th>`).join('')}<th>Toplam</th></tr></thead><tbody>
-  ${ogr.map(o => `<tr><td class="sticky nm"><span class="num muted" style="font-size:12px">${esc(o.no)}</span> ${esc(o.ad)}</td>${x.sorular.map((q, i) => `<td><input id="sv-${o.id}-${i}" data-in="sv-p" data-o="${o.id}" data-i="${i}" inputmode="decimal" value="${esc(((x.puan || {})[o.id] || [])[i] ?? '')}" style="min-width:44px"></td>`).join('')}<td class="sum" id="svt-${o.id}">${((x.puan || {})[o.id] || []).some(v => v !== '' && v != null) ? st.top(o) : ''}</td></tr>`).join('')}
+  ${ogr.map(o => `<tr><td class="sticky nm" data-act="sv-detay" data-o="${o.id}" style="cursor:pointer"><span class="num muted" style="font-size:12px">${esc(o.no)}</span> ${esc(o.ad)}${((x.geri || {})[o.id] || {}).yz ? ' <span class="pill warn">YZ</span>' : (x.geri || {})[o.id] ? ' <span class="pill ok">✓</span>' : ''}</td>${x.sorular.map((q, i) => `<td><input id="sv-${o.id}-${i}" data-in="sv-p" data-o="${o.id}" data-i="${i}" inputmode="decimal" value="${esc(((x.puan || {})[o.id] || [])[i] ?? '')}" style="min-width:44px"></td>`).join('')}<td class="sum" id="svt-${o.id}">${((x.puan || {})[o.id] || []).some(v => v !== '' && v != null) ? st.top(o) : ''}</td></tr>`).join('')}
   </tbody><tfoot><tr><td class="sticky" style="text-align:left">Başarı %</td>${st.soru.map(q => `<td style="${q.yuzde < 50 && st.girilen.length ? 'color:var(--red);font-weight:600' : ''}">%${q.yuzde}</td>`).join('')}<td></td></tr></tfoot></table></div>
   <div class="row"><button class="btn sm" data-act="sv-soruekle">+ Soru ekle</button><button class="btn sm" data-act="sv-hepsi">Hücreleri yenile</button><span style="flex:1"></span><button class="btn danger sm" data-act="sv-sil">${icon('trash')}Sil</button></div>
   ${st.girilen.length ? `<section class="card"><h3>Telafi gereken sorular (%50 altı)</h3>${st.soru.filter(q => q.yuzde < 50).length ? `<ul>${st.soru.filter(q => q.yuzde < 50).map(q => `<li>${q.i + 1}. soru · %${q.yuzde}${q.ck ? ' · ' + esc(q.ck) : ''}</li>`).join('')}</ul><button class="btn sm" data-act="sv-telafi" style="margin-top:8px">Telafi planı oluştur</button>` : '<p class="muted">Tüm sorularda sınıf başarısı %50 ve üzerinde.</p>'}</section>` : ''}
-  <p class="note">Soru başlığına dokunarak puanını ve öğrenme çıktısını (ör. T.O.6.3) girin.</p>`;
+  <p class="note">Soru başlığına dokunarak puanını, doğru cevabını, ölçütünü ve öğrenme çıktısını düzenleyin. Öğrenci adına dokunarak kâğıt fotoğrafını, cevaplarını, puan gerekçelerini ve geri bildirimini görün. <span class="pill warn">YZ</span> yapay zekâ puanladı, henüz kontrol etmediniz.</p>`;
 };
 function svRaporHTML(x) { const st = svStat(x); const p = prof(); const zayif = st.soru.filter(q => q.yuzde < 50);
   return `${H2(p, esc(up(x.ad)) + '<br>SINAV ANALİZ RAPORU')}<table><tr><th>Ders</th><td>${esc(p.brans)}</td><th>Sınıf</th><td>${esc(st.s ? sinifKisa(st.s.ad) : '')}</td></tr><tr><th>Sınava giren</th><td>${st.girilen.length}</td><th>Ortalama</th><td>${Math.round(st.ort * 10) / 10} / ${st.max}</td></tr><tr><th>En yüksek / en düşük</th><td>${st.en} / ${st.ek}</td><th>%50 ve üstü</th><td>${st.basarili}</td></tr></table>
@@ -1763,6 +1764,130 @@ async function paylasilanVarMi() {
   if (!/paylasim=1/.test(location.search)) return;
   try { const c = await caches.open('od-share'); const r = await c.match('./_paylasilan'); history.replaceState(null, '', location.pathname); if (!r) return; const t = await r.text(); await c.delete('./_paylasilan'); pkAc(t); } catch (e) {}
 }
+
+/* ===================== Sınav kâğıdı okuma (cevap anahtarı + yapay zekâ puanlama) ===================== */
+async function gemini(parts, schema) {
+  const a = ayar(); const key = (a.aiKey || '').trim(); if (!key) throw { code:'nokey' };
+  const model = (a.aiModel || 'gemini-2.5-flash').trim();
+  const body = JSON.stringify({ contents:[{ role:'user', parts }], generationConfig:{ temperature:0, responseMimeType:'application/json', responseSchema:schema } });
+  const call = m => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-goog-api-key':key }, body });
+  let r; try { r = await call(model); if (r.status === 404 && model !== 'gemini-flash-latest') r = await call('gemini-flash-latest'); } catch (e) { throw { code:'net' }; }
+  if (!r.ok) { let msg = ''; try { msg = (await r.json()).error.message; } catch (e) {} throw { code:r.status, msg }; }
+  const j = await r.json(); const t = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('');
+  try { return JSON.parse(t); } catch (e) { throw { code:'parse' }; }
+}
+async function imgPart(blob) { const sb = await shrinkTo(blob, 2000); const du = await readDataURL(sb); return { inline_data:{ mime_type:'image/jpeg', data:du.slice(du.indexOf(',') + 1) } }; }
+async function blobPart(blob, mime) { const du = await readDataURL(blob); return { inline_data:{ mime_type:mime, data:du.slice(du.indexOf(',') + 1) } }; }
+const S_ANAHTAR = { type:'OBJECT', properties:{ sorular:{ type:'ARRAY', items:{ type:'OBJECT', properties:{ no:{ type:'INTEGER' }, puan:{ type:'NUMBER' }, soru:{ type:'STRING' }, dogruCevap:{ type:'STRING' }, olcut:{ type:'STRING' }, ogrenmeCiktisi:{ type:'STRING' } }, required:['no','puan','dogruCevap'] } } }, required:['sorular'] };
+const S_KAGIT = { type:'OBJECT', properties:{ adSoyad:{ type:'STRING' }, okulNo:{ type:'STRING' }, sorular:{ type:'ARRAY', items:{ type:'OBJECT', properties:{ no:{ type:'INTEGER' }, ogrenciCevabi:{ type:'STRING' }, puan:{ type:'NUMBER' }, gerekce:{ type:'STRING' } }, required:['no','puan'] } }, genelGeriBildirim:{ type:'STRING' } }, required:['sorular'] };
+function anahtarMetni(x) {
+  return (x.sorular || []).map((q, i) => `Soru ${i + 1} (${q.p} puan)${q.ck ? ' [Öğrenme çıktısı: ' + q.ck + ']' : ''}${q.soru ? '\n  Soru: ' + q.soru : ''}\n  Doğru cevap: ${q.cevap || '(belirtilmemiş)'}${q.olcut ? '\n  Puanlama ölçütü: ' + q.olcut : ''}`).join('\n');
+}
+function kagitPrompt(x) { const p = prof();
+  return `Sen Türkiye Yüzyılı Maarif Modeli'ni uygulayan deneyimli bir ${p.brans || 'Türkçe'} öğretmenisin. Aşağıda bir sınavın cevap anahtarı ve puanlama ölçütleri, ardından bir öğrencinin el yazısıyla cevapladığı sınav kâğıdının fotoğrafları var. Kâğıttaki cevapları oku ve her soruyu puanla.
+
+CEVAP ANAHTARI VE ÖLÇÜTLER:
+${anahtarMetni(x)}
+${x.anahtar && x.anahtar.metin ? '\nÖğretmenin yüklediği cevap anahtarının metni:\n' + x.anahtar.metin.slice(0, 12000) : ''}
+
+PUANLAMA KURALLARI:
+- Çoktan seçmeli, doğru-yanlış, eşleştirme ve boşluk doldurma sorularını anahtarla birebir karşılaştır.
+- Açık uçlu sorularda dereceli puanlama yap: tam ve doğru cevaba tam puan; kısmen doğru cevaba ölçütlere göre kısmi puan ver. İfade anahtardan farklı olsa da anlamca doğru cevabı kabul et.
+- Yazım ve noktalama hataları yalnızca sorunun ölçütü bunu içeriyorsa ya da anahtarda belirtilmişse puanı etkilesin.
+- Boş, okunamayan ya da ilgisiz cevaba 0 ver ve gerekçede belirt. Hiçbir soruda o sorunun puanını aşma.
+- Her soru için öğrencinin cevabını (ogrenciCevabi) kısaca yaz ve puanın kısa gerekçesini ver.
+- adSoyad ve okulNo: kâğıdın üstündeki öğrenci adı ve numarası.
+- genelGeriBildirim: öğrenciye hitaben, Maarif Modeli'nin süreç odaklı ve gelişimi destekleyen yaklaşımına uygun, güçlü yönünü ve geliştirmesi gereken beceriyi ya da öğrenme çıktısını belirten, cesaretlendirici 2-3 cümle. Not veya puan tekrar etme.
+Puanlar öğretmen tarafından kontrol edilip onaylanacaktır.`;
+}
+function svDosya(blob, ad) { return (async () => { const r = await Files.upload(blob); const id = rid('dosya'); Store.put(id, { type:'dosya', ad, klasor:'Sınav ve Değerlendirme', assetId:r.id, ct:blob.type || 'image/jpeg', ext:(ad.split('.').pop() || 'jpg').toLowerCase(), b64:false, orjTip:blob.type || '', boyut:blob.size, tarih:Date.now() }, true); return id; })(); }
+
+function anahtarKart(x) {
+  const a = x.anahtar || {}; const tam = (x.sorular || []).filter(q => q.cevap).length;
+  return `<section class="card"><div class="row between"><h3 style="margin:0">Cevap anahtarı</h3><span class="pill ${tam === x.sorular.length && tam ? 'ok' : 'warn'}">${tam}/${x.sorular.length} sorunun cevabı var</span></div>
+    <p class="note" style="margin:8px 0 12px">${a.dosyaAd ? `Yüklenen: <b>${esc(a.dosyaAd)}</b>. ` : ''}Word, PDF, fotoğraf ya da metin olarak yükleyin; sorular, puanlar, doğru cevaplar ve açık uçlu sorular için puanlama ölçütleri çıkarılır. Soru başlığına dokunarak düzeltebilirsiniz.</p>
+    <div class="row"><label class="btn" for="ca-file">${icon('up')}Cevap anahtarı yükle</label><input type="file" id="ca-file" data-in="ca-file" accept=".docx,.pdf,.txt,image/*" hidden><button class="btn" data-act="ca-metin">Metin olarak yapıştır</button>
+    <button class="btn primary" data-act="sk-ac" ${tam ? '' : 'disabled'}>${icon('up')}Kâğıtları fotoğraftan oku</button>${Object.keys(x.geri || {}).length ? `<button class="btn" data-act="sv-geri-yazdir">Öğrenci geri bildirimlerini yazdır</button>` : ''}</div></section>`;
+}
+async function anahtarCozumle(parts, kaynakAd, metin) {
+  const x = Store.get(S.pid); toast('Cevap anahtarı çözümleniyor…', 15000);
+  try {
+    const d = await gemini([{ text:`Aşağıdaki belge bir ${prof().brans || 'Türkçe'} sınavının cevap anahtarıdır (soru kâğıdıyla birlikte olabilir). Her soruyu sırasıyla çıkar: soru numarası, puanı (belirtilmemişse toplam 100'ü soru sayısına eşit böl), kısa soru metni, doğru cevap, açık uçlu sorular için puanlama ölçütü (kısmi puan nasıl verilir) ve varsa öğrenme çıktısı kodu (ör. T.O.6.3). Belgede olmayan bilgiyi uydurma.` }, ...parts], S_ANAHTAR);
+    const sq = (d.sorular || []).sort((a, b) => a.no - b.no).map(q => ({ p:+q.puan || 0, ck:String(q.ogrenmeCiktisi || '').trim(), cevap:String(q.dogruCevap || '').trim(), olcut:String(q.olcut || '').trim(), soru:String(q.soru || '').trim() }));
+    if (!sq.length) { toast('Belgede soru bulunamadı.', 5000); return; }
+    const puanVar = Object.values(x.puan || {}).some(a => (a || []).some(v => v !== '' && v != null));
+    const uygula = () => { const y = Store.get(S.pid); y.sorular = sq; if (!puanVar) y.puan = {}; else for (const k in y.puan || {}) { y.puan[k] = (y.puan[k] || []).slice(0, sq.length); } y.anahtar = { metin:metin || (y.anahtar || {}).metin || '', dosyaAd:kaynakAd }; Store.put(y.id, y, true); render(); toast(`${sq.length} soru ve cevap anahtarı yüklendi. Soru başlıklarına dokunarak kontrol edin.`, 5000); };
+    if (puanVar && sq.length !== x.sorular.length) ask(`Anahtarda ${sq.length} soru var, bu sınavda ${x.sorular.length}. Sorular anahtara göre değiştirilecek; girilmiş puanlar soru sırasına göre korunur.`, 'Uygula', uygula); else uygula();
+  } catch (e) { toast(aiHata(e), 6000); }
+}
+
+Object.assign(ACT, {
+  'sv-soru': b => { const x = Store.get(S.pid); const i = +b.dataset.i; const q = x.sorular[i];
+    openModal(`${i + 1}. soru`, `<div class="fgrid"><div class="field"><label for="sq-p">Puanı</label><input class="inp" id="sq-p" type="number" value="${q.p}"></div><div class="field"><label for="sq-ck">Öğrenme çıktısı</label><input class="inp" id="sq-ck" value="${esc(q.ck || '')}" placeholder="ör. T.O.6.3"></div>
+      <div class="field" style="grid-column:1/-1"><label for="sq-soru">Soru (kısa)</label><input class="inp" id="sq-soru" value="${esc(q.soru || '')}"></div>
+      <div class="field" style="grid-column:1/-1"><label for="sq-cevap">Doğru cevap</label><textarea class="inp" id="sq-cevap" style="min-height:60px;font-family:var(--f-body)">${esc(q.cevap || '')}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label for="sq-olcut">Puanlama ölçütü (açık uçlu sorular için: kısmi puan nasıl verilir)</label><textarea class="inp" id="sq-olcut" style="min-height:60px;font-family:var(--f-body)" placeholder="ör. Ana fikri doğru yazarsa 6, gerekçelendirirse +4">${esc(q.olcut || '')}</textarea></div></div>`,
+      `<button class="btn danger" data-act="sq-sil" data-i="${i}">Soruyu sil</button><span style="flex:1"></span><button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="sq-kaydet" data-i="${i}">Kaydet</button>`); },
+  'sq-kaydet': b => { const x = Store.get(S.pid); const i = +b.dataset.i; x.sorular[i] = { p:parseFloat($('#sq-p').value) || 0, ck:$('#sq-ck').value.trim(), soru:$('#sq-soru').value.trim(), cevap:$('#sq-cevap').value.trim(), olcut:$('#sq-olcut').value.trim() }; Store.put(x.id, x, true); closeModal(); render(); },
+  'ca-metin': () => { if (!(ayar().aiKey || '').trim()) { aiAyarModal(); return; } openModal('Cevap anahtarını yapıştırın', `<textarea class="inp" id="ca-t" style="min-height:220px;font-family:var(--f-body)" placeholder="1. B (5 puan)&#10;2. Doğru (5 puan)&#10;3. Metnin ana fikri: … (10 puan; ana fikir 6, gerekçe 4)"></textarea>`, `<button class="btn" data-act="modal-close">Vazgeç</button><button class="btn primary" data-act="ca-metin-git">Çözümle</button>`); },
+  'ca-metin-git': () => { const t = $('#ca-t').value.trim(); if (!t) { toast('Metni yapıştırın.'); return; } closeModal(); anahtarCozumle([{ text:t }], 'yapıştırılan metin', t); },
+  'sk-ac': () => { const x = Store.get(S.pid); if (!(ayar().aiKey || '').trim()) { aiAyarModal(); return; }
+    S.sk = { items:[], sayfa:S.skSayfa || 1 };
+    openModal('Sınav kâğıtlarını oku', `<p class="note">Kâğıtların fotoğraflarını sırayla seçin. Kâğıtlar birden çok sayfaysa sayfa sayısını belirtin; fotoğraflar sırayla gruplanır (ör. 2 sayfa: 1–2. fotoğraf ilk öğrenci, 3–4. fotoğraf ikinci öğrenci). Puanları kaydetmeden önce kontrol edin.</p>
+      <div class="fgrid"><div class="field"><label for="sk-sayfa">Her kâğıt kaç sayfa?</label><select class="inp" id="sk-sayfa" data-in="sk-sayfa">${[1, 2, 3, 4].map(n => `<option ${n === S.sk.sayfa ? 'selected' : ''}>${n}</option>`).join('')}</select></div><div class="field"><label for="sk-file">Fotoğraflar</label><input class="inp" type="file" id="sk-file" data-in="sk-file" accept="image/*" multiple></div></div><div id="sk-rows"></div>`,
+      `<button class="btn" data-act="modal-close">Kapat</button><button class="btn primary" data-act="sk-go" id="sk-go">Oku ve puanla</button>`, true); },
+  'sk-go': async b => {
+    const K = S.sk; const x = Store.get(S.pid); const s = Store.get(x.sinifId); if (!K || !K.items.length) { toast('Önce fotoğraf seçin.'); return; }
+    if (K.ready) { let n = 0;
+      const secim = K.items.map((it, i) => it.st === 'ok' ? $('#sk-m-' + i).value : '').filter(Boolean); const cift = secim.find((v, i) => secim.indexOf(v) !== i);
+      if (cift) { const o = (s.ogr || []).find(z => z.id === cift); toast(`${o ? o.ad : 'Bir öğrenci'} iki kâğıda eşleştirilmiş. Eşleşmeleri düzeltin.`, 5000); return; }
+      for (let i = 0; i < K.items.length; i++) { const it = K.items[i]; const oid = $('#sk-m-' + i).value; if (!oid || it.st !== 'ok') continue;
+        const o = (s.ogr || []).find(z => z.id === oid); const y = Store.get(x.id); const ids = [];
+        for (const [j, bl] of it.blobs.entries()) ids.push(await svDosya(bl, `Sınav - ${o.ad} - ${y.ad}${it.blobs.length > 1 ? ' s' + (j + 1) : ''}.jpg`));
+        y.puan = { ...(y.puan || {}), [oid]:y.sorular.map((q, qi) => { const r = (it.d.sorular || []).find(z => +z.no === qi + 1); return r ? String(Math.max(0, Math.min(q.p, Math.round((+r.puan || 0) * 2) / 2))) : ''; }) };
+        y.geri = { ...(y.geri || {}), [oid]:{ genel:it.d.genelGeriBildirim || '', sorular:y.sorular.map((q, qi) => { const r = (it.d.sorular || []).find(z => +z.no === qi + 1) || {}; return { cevap:r.ogrenciCevabi || '', gerekce:r.gerekce || '' }; }), yz:true } };
+        y.kagit = { ...(y.kagit || {}), [oid]:[...((y.kagit || {})[oid] || []), ...ids] }; Store.put(y.id, y, true); it.st = 'kayit'; n++; }
+      closeModal(); toast(`${n} öğrencinin puanı kaydedildi. "YZ" işaretli satırları kontrol edin.`, 5000); render(); return; }
+    b.disabled = true;
+    for (let i = 0; i < K.items.length; i++) { const it = K.items[i]; if (it.st === 'ok') continue; const st = $('#sk-s-' + i); st.textContent = 'okunuyor ve puanlanıyor…'; st.style.color = ''; let tries = 0;
+      while (true) { try { const parts = [{ text:kagitPrompt(x) }]; for (const bl of it.blobs) parts.push(await imgPart(bl));
+          const d = await gemini(parts, S_KAGIT); it.d = d; it.st = 'ok'; it.match = matchOgr(s, d.adSoyad, d.okulNo);
+          const top = x.sorular.reduce((a, q, qi) => { const r = (d.sorular || []).find(z => +z.no === qi + 1); return a + (r ? Math.max(0, Math.min(q.p, +r.puan || 0)) : 0); }, 0);
+          st.innerHTML = `${esc(d.adSoyad || 'ad okunamadı')}${d.okulNo ? ' · ' + esc(d.okulNo) : ''} · <b>${Math.round(top * 2) / 2} puan</b>`; st.style.color = 'var(--ok)'; const sel = $('#sk-m-' + i); sel.value = it.match; sel.disabled = false; break; }
+        catch (e) { if (e && e.code === 429 && tries++ < 2) { st.textContent = 'sınır doldu, bekleniyor…'; await new Promise(r => setTimeout(r, 30000)); continue; } it.st = 'err'; st.textContent = aiHata(e); st.style.color = 'var(--red)'; if (e && (e.code === 'nokey' || e.code === 400 || e.code === 403 || e.code === 'net')) { b.disabled = false; return; } break; } }
+      await new Promise(r => setTimeout(r, 1200)); }
+    b.disabled = false; if (K.items.some(z => z.st === 'ok')) { K.ready = true; b.textContent = 'Puanları kaydet'; toast('Okuma bitti. Öğrenci eşleşmelerini kontrol edip kaydedin.', 4500); } else b.textContent = 'Tekrar dene';
+  },
+  'sv-detay': b => { const x = Store.get(S.pid); const oid = b.dataset.o; const r = findOgr(oid); const g = (x.geri || {})[oid] || {}; const pu = (x.puan || {})[oid] || []; const kg = ((x.kagit || {})[oid] || []).map(id => Store.get(id)).filter(Boolean);
+    openModal(esc(r ? r.o.ad : 'Öğrenci'), `${kg.length ? `<div class="row">${kg.map(f => `<button class="fcard" data-act="dz-open" data-id="${f.id}" style="width:110px"><div class="fthumb"><img data-fid="${esc(f.assetId)}" alt=""></div></button>`).join('')}</div>` : ''}
+      <div class="tablewrap"><table class="t"><thead><tr><th>Soru</th><th>Puan</th><th style="text-align:left">Öğrencinin cevabı</th><th style="text-align:left">Gerekçe</th></tr></thead><tbody>${x.sorular.map((q, i) => `<tr><td class="no">${i + 1}</td><td class="num">${esc(pu[i] ?? '')} / ${q.p}</td><td style="text-align:left;white-space:normal;padding:6px 8px;min-width:140px">${esc(((g.sorular || [])[i] || {}).cevap || '')}</td><td style="text-align:left;white-space:normal;padding:6px 8px;min-width:160px">${esc(((g.sorular || [])[i] || {}).gerekce || '')}</td></tr>`).join('')}</tbody></table></div>
+      <div class="field"><label for="gb-t">Öğrenciye geri bildirim</label><textarea class="inp" id="gb-t" style="min-height:90px;font-family:var(--f-body)">${esc(g.genel || '')}</textarea></div>${g.yz ? '<p class="note">Puanlar ve geri bildirim yapay zekâ tarafından önerildi. Tablodaki puanları sınav sayfasında düzeltebilirsiniz.</p>' : ''}`,
+      `${g.yz ? `<button class="btn" data-act="gb-onay" data-o="${oid}">Kontrol ettim</button>` : ''}<span style="flex:1"></span><button class="btn" data-act="modal-close">Kapat</button><button class="btn primary" data-act="gb-kaydet" data-o="${oid}">Geri bildirimi kaydet</button>`, true); },
+  'gb-kaydet': b => { const x = Store.get(S.pid); const oid = b.dataset.o; x.geri = { ...(x.geri || {}), [oid]:{ ...((x.geri || {})[oid] || {}), genel:$('#gb-t').value.trim() } }; Store.put(x.id, x, true); closeModal(); render(); },
+  'gb-onay': b => { const x = Store.get(S.pid); const oid = b.dataset.o; x.geri = { ...(x.geri || {}), [oid]:{ ...((x.geri || {})[oid] || {}), genel:$('#gb-t').value.trim(), yz:false } }; Store.put(x.id, x, true); closeModal(); render(); toast('Onaylandı.'); },
+  'sv-geri-yazdir': () => { const x = Store.get(S.pid); const st = svStat(x); const p = prof();
+    const kart = o => { const g = (x.geri || {})[o.id]; const pu = (x.puan || {})[o.id] || []; if (!g && !pu.some(v => v !== '' && v != null)) return '';
+      return `<div style="border:1px solid #000;padding:10px 12px;margin:0 0 14px;break-inside:avoid"><p style="margin:0 0 6px"><b>${esc(o.ad)}</b> · No ${esc(o.no)} · ${esc(x.ad)} · <b>${st.top(o)} / ${st.max}</b></p><table style="margin:4px 0"><tr><th>Soru</th>${x.sorular.map((_, i) => `<td style="text-align:center">${i + 1}</td>`).join('')}</tr><tr><th>Puan</th>${x.sorular.map((q, i) => `<td style="text-align:center">${esc(pu[i] ?? '')}/${q.p}</td>`).join('')}</tr></table>${g && g.genel ? `<p style="margin:6px 0 0"><b>Öğretmenimin notu:</b> ${esc(g.genel)}</p>` : ''}</div>`; };
+    printHTML(x.ad + ' Geri Bildirimler', `<p style="text-align:center"><b>${esc(up(p.okul))}<br>${esc(up(p.brans))} DERSİ · ${esc(up(x.ad))} · ÖĞRENCİ GERİ BİLDİRİMLERİ</b></p>${st.ogr.map(kart).join('')}<p style="font-size:10pt;text-align:right">${esc(p.ad)} · ${esc(p.brans)} Öğretmeni</p>`); }
+});
+document.addEventListener('change', async e => {
+  const el = e.target; const k = el.dataset && el.dataset.in; if (!k) return;
+  if (k === 'ca-file') { const f = el.files[0]; el.value = ''; if (!f) return; if (!(ayar().aiKey || '').trim()) { aiAyarModal(); return; }
+    const ad = f.name; const ext = low(ad.split('.').pop());
+    try {
+      if (ext === 'docx') { if (typeof mammoth === 'undefined') { toast('Word okuyucu yüklenemedi.'); return; } const t = (await mammoth.extractRawText({ arrayBuffer:await f.arrayBuffer() })).value; anahtarCozumle([{ text:t }], ad, t); }
+      else if (ext === 'pdf') anahtarCozumle([await blobPart(f, 'application/pdf')], ad, '');
+      else if (ext === 'txt') { const t = await f.text(); anahtarCozumle([{ text:t }], ad, t); }
+      else if (/^image\//.test(f.type) || /^(jpe?g|png|webp)$/.test(ext)) anahtarCozumle([await imgPart(f)], ad, '');
+      else if (ext === 'doc') toast('Eski .doc biçimi okunamıyor. Word\'de .docx olarak kaydedip yükleyin.', 5000);
+      else toast('Bu dosya türü desteklenmiyor. Word (.docx), PDF, fotoğraf ya da metin yükleyin.', 5000);
+    } catch (er) { toast('Dosya okunamadı.'); } }
+  else if (k === 'sk-sayfa') { S.skSayfa = +el.value; S.sk.sayfa = +el.value; const fi = $('#sk-file'); if (fi.files.length) fi.dispatchEvent(new Event('change', { bubbles:true })); }
+  else if (k === 'sk-file') { const K = S.sk; const x = Store.get(S.pid); const s = Store.get(x.sinifId); const files = [...el.files]; const n = K.sayfa || 1; K.items = []; K.ready = false;
+    for (let i = 0; i < files.length; i += n) { const blobs = []; for (const f of files.slice(i, i + n)) blobs.push(await shrinkTo(f, 2200)); K.items.push({ blobs, st:'' }); }
+    $('#sk-rows').innerHTML = `<p class="note" style="margin-top:8px">${files.length} fotoğraf → ${K.items.length} öğrenci kâğıdı</p>` + K.items.map((it, i) => `<div class="uprow" style="grid-template-columns:56px minmax(0,1fr) 190px"><img id="sk-i-${i}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px"><span class="st" id="sk-s-${i}">${it.blobs.length} sayfa · okunmayı bekliyor</span><select class="inp" id="sk-m-${i}" disabled aria-label="Öğrenci"><option value="">Eşleşme yok (atla)</option>${(s.ogr || []).map(o => `<option value="${o.id}">${esc(o.no)} ${esc(o.ad)}</option>`).join('')}</select></div>`).join('');
+    K.items.forEach((it, i) => { $('#sk-i-' + i).src = URL.createObjectURL(it.blobs[0]); }); const g = $('#sk-go'); g.textContent = 'Oku ve puanla'; }
+});
 
 /* ===================== Başlangıç ===================== */
 async function boot() {
