@@ -1,5 +1,5 @@
-const V = 'od-v7';
-const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './vendor/xlsx.full.min.js', './vendor/mammoth.browser.min.js', './icons/icon-192.png', './icons/icon-512.png'];
+const V = 'od-v8';
+const SHELL = ['./', './index.html', './app.js', './manifest.webmanifest', './vendor/xlsx.full.min.js', './vendor/mammoth.browser.min.js', './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './vendor/leaflet/images/marker-icon.png', './vendor/leaflet/images/marker-icon-2x.png', './vendor/leaflet/images/marker-shadow.png', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {

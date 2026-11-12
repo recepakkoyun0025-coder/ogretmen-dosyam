@@ -242,7 +242,7 @@ function shell() {
   setSync(Store.mode === 'init' ? 'init' : Store.dirty.size ? 'busy' : 'ok');
 }
 function markNav() {
-  const top = { sinif:'siniflar', cizelge:'cizelgeler', evrak:'evraklar', ogrenci:'rehberlik', oturma:'rehberlik', modul:'moduller', sinavlar:'moduller', sinav:'moduller', dzp:'moduller' }[S.page] || S.page;
+  const top = { sinif:'siniflar', cizelge:'cizelgeler', evrak:'evraklar', ogrenci:'rehberlik', oturma:'rehberlik', modul:'moduller', sinavlar:'moduller', sinav:'moduller', dzp:'moduller', kroki:'moduller' }[S.page] || S.page;
   $$('[data-act="nav"]').forEach(b => { if (b.dataset.p === top) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
 }
 function go(page, pid = null) { if (S.page === 'evrak') evFlush(); S.page = page; S.pid = pid; S.edit = null; render(); window.scrollTo(0, 0); }
@@ -955,6 +955,7 @@ const ACT = {
         <h3>2026-2027 Çalışma Takvimi</h3><table>${TAKVIM.map(e => `<tr><td>${fmtD(dParse(e.t))}${e.b ? ' – ' + fmtD(dParse(e.b)) : ''}</td><td>${esc(e.ad)}</td></tr>`).join('')}</table></div>`);
       for (const s of siniflar()) parts.push(`<div class="pb"><h2 style="text-align:center">${esc(s.ad)} SINIF LİSTESİ</h2><table><tr><th>S.No</th><th>No</th><th>Adı Soyadı</th></tr>${(s.ogr || []).map((o, i) => `<tr><td>${i + 1}</td><td>${esc(o.no)}</td><td>${esc(o.ad)}</td></tr>`).join('')}</table></div>`);
       parts.push(`<div class="pb">${dpHTML(p)}</div>`);
+      if (krGet().svg) parts.push(`<div class="pb">${krokiBaskiHTML(p, krGet())}</div>`);
       const order = KATEGORI;
       for (const k of order) for (const e of evraklar().filter(x => x.kategori === k)) parts.push(`<div class="pb">${e.html}</div>`);
       for (const c of cizelgeler()) parts.push(`<div class="pb">${czTableHTML(c)}</div>`);
@@ -1698,6 +1699,7 @@ PAGES.mufettis = () => {
       ${sec('Sınıf listeleri', siniflar().map(s => it('open-sinif', s.id, s.ad + (s.rehber ? ' (rehber sınıfım)' : ''), (s.ogr || []).length + ' öğrenci')).join(''))}
       ${MODS.map(m => { const d = modDurum(m); let items = '';
         if (m.k === 'rehberlik') items += rbMufettisItems();
+        if (m.k === 'okul') items += krGet().svg ? `<button data-act="nav" data-p="kroki"><span>Okul çevre krokisi</span><small>${fmtD(krGet().tarih)}</small></button>` : '';
         if (m.k === 'olcme') items += Store.list('sinav').map(x => it('open-sinav', x.id, 'Sınav analizi · ' + x.ad, fmtD(x.guncelleme))).join('') + cizelgeler().map(c => it('open-cizelge', c.id, c.ad, sinifAd(c.sinifId))).join('');
         items += ev.filter(e => m.kat.includes(e.kategori)).map(e => it('open-evrak', e.id, e.baslik, fmtD(e.guncelleme))).join('');
         items += dz.filter(f => m.klasor.includes(f.klasor) || (m.k === 'rehberlik' && f.klasor === rehberKlasor())).map(f => it('dz-open', f.id, f.ad, f.klasor)).join('');
@@ -2100,6 +2102,105 @@ document.addEventListener('change', async e => { const el = e.target; if (!el.da
   m.tpl = ['dzp_komisyon','dzp_plan','dzp_gorev','dzp_rapor','dzp_yilsonu']; m.arac = [['Dilimizin Zenginlikleri: takip, evrak, materyal', 'dzp-tab', 'plan']];
   m.gerek = [['Okul yürütme komisyonu tutanağı', () => evraklar().some(e => e.sablon === 'dzp_komisyon')], ['Okul eylem planı', () => evraklar().some(e => e.sablon === 'dzp_plan')], ['Tarihi gelen okul adımları uygulandı', () => DZP_ADIMLAR.filter(a => a.okul && isoDay(0) > a.bit).every(a => dzpDurum(a.no).ok)]]; }
 { const _bk = bugunKart; bugunKart = () => { const s = DZP_ADIMLAR.filter(a => a.okul && dzpZaman(a) === 'simdi'); return _bk() + (s.length ? `<section class="card" style="grid-column:1/-1"><div class="row between"><h2 style="margin:0">Dilimizin Zenginlikleri · bu hafta</h2><button class="btn sm" data-act="dzp-tab" data-k="plan">Takip</button></div>${s.map(a => `<div style="margin-top:6px"><b class="num">${a.no}</b> ${esc(a.ad)} <span class="muted">· ${dAralik(a)}</span></div>`).join('')}</section>` : ''); }; }
+
+/* ===================== Okul ve çevre krokisi ===================== */
+KLASOR0.splice(KLASOR0.indexOf('Genel'), 0, 'Kroki ve Planlar');
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+const krGet = () => Store.get('kroki') || { type:'kroki', r:500 };
+let krMap = null, krMarker = null;
+const POI = [
+  { re:/^(school|kindergarten|college|university)$/, k:'amenity', h:'O', ad:'Okul', c:'#1d4ed8' },
+  { re:/^place_of_worship$/, k:'amenity', h:'C', ad:'Cami / ibadethane', c:'#047857' },
+  { re:/^pharmacy$/, k:'amenity', h:'E', ad:'Eczane', c:'#b91c1c' },
+  { re:/^(hospital|clinic|doctors)$/, k:'amenity', h:'S', ad:'Sağlık kuruluşu', c:'#b91c1c' },
+  { re:/^police$/, k:'amenity', h:'P', ad:'Polis / karakol', c:'#1e3a8a' },
+  { re:/^fire_station$/, k:'amenity', h:'İ', ad:'İtfaiye', c:'#c2410c' },
+  { re:/^(townhall|community_centre|library)$/, k:'amenity', h:'K', ad:'Kamu binası / kütüphane', c:'#6d28d9' },
+  { re:/^bus_stop$/, k:'highway', h:'D', ad:'Otobüs durağı', c:'#374151' },
+  { re:/^(station|halt)$/, k:'railway', h:'M', ad:'Metro / tren', c:'#374151' }
+];
+const YOL = { motorway:[10,'#9ca3af'], trunk:[9,'#9ca3af'], primary:[8,'#d1d5db'], secondary:[7,'#e5e7eb'], tertiary:[6,'#f3f4f6'], residential:[4.5,'#ffffff'], unclassified:[4.5,'#ffffff'], living_street:[4,'#ffffff'], service:[2.5,'#ffffff'], pedestrian:[3.5,'#fef3c7'], footway:[1.4,'#fde68a'], path:[1.2,'#fde68a'], steps:[1.4,'#fde68a'], track:[2,'#e7e5e4'] };
+async function overpass(q) { let last;
+  for (const u of OVERPASS) { try { const r = await fetch(u, { method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' }, body:'data=' + encodeURIComponent(q) }); if (r.ok) return await r.json(); last = r.status; } catch (e) { last = 'net'; } }
+  throw { code:last }; }
+function krokiSVG(data, lat0, lon0, R, p) {
+  const W = 1000, H = 1000, s = 470 / R, cosL = Math.cos(lat0 * Math.PI / 180);
+  const P = (lat, lon) => [W / 2 + (lon - lon0) * cosL * 111320 * s, H / 2 - (lat - lat0) * 110540 * s];
+  const el = data.elements || []; const ways = el.filter(e => e.type === 'way' && e.geometry);
+  const path = g => g.map((pt, i) => { const [x, y] = P(pt.lat, pt.lon); return (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1); }).join('');
+  const t = x => esc(String(x || ''));
+  let alan = '', bina = '', yolAlt = '', yolUst = '', etiket = '', poi = ''; const used = [];
+  for (const w of ways) { const tg = w.tags || {};
+    if (tg.leisure === 'park' || tg.leisure === 'playground' || tg.landuse === 'grass' || tg.leisure === 'pitch') alan += `<path d="${path(w.geometry)}Z" fill="#d9f2d0" stroke="#9fd18b" stroke-width="1"/>`;
+    else if (tg.amenity && /school|kindergarten|place_of_worship|hospital|clinic/.test(tg.amenity) || tg.building) bina += `<path d="${path(w.geometry)}Z" fill="${tg.amenity && /school|kindergarten/.test(tg.amenity) ? '#bfdbfe' : '#e7e1d6'}" stroke="#a8a29e" stroke-width=".8"/>`; }
+  const yollar = ways.filter(w => (w.tags || {}).highway && YOL[w.tags.highway]);
+  for (const w of yollar) { const [g] = YOL[w.tags.highway]; const d = path(w.geometry); const ince = g < 2;
+    const gw = Math.min(26, Math.max(g * 3, g * s * 2.4));
+    if (ince) { yolUst += `<path d="${d}" fill="none" stroke="#b45309" stroke-width="1.6" stroke-dasharray="5 4" stroke-linecap="round"/>`; continue; }
+    yolAlt += `<path d="${d}" fill="none" stroke="#6b7280" stroke-width="${(gw + 2).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    yolUst += `<path d="${d}" fill="none" stroke="${YOL[w.tags.highway][1]}" stroke-width="${gw.toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`; }
+  const adlar = {}; for (const w of yollar) { const n = (w.tags || {}).name; if (!n || YOL[w.tags.highway][0] < 2) continue; const g = w.geometry; let L = 0; for (let i = 1; i < g.length; i++) { const a = P(g[i - 1].lat, g[i - 1].lon), b = P(g[i].lat, g[i].lon); L += Math.hypot(b[0] - a[0], b[1] - a[1]); } if (!adlar[n] || adlar[n].L < L) adlar[n] = { L, g }; }
+  for (const [n, { L, g }] of Object.entries(adlar).sort((a, b) => b[1].L - a[1].L)) { if (L < n.length * 6) continue;
+    let best = null; for (let i = 1; i < g.length; i++) { const a = P(g[i - 1].lat, g[i - 1].lon), b = P(g[i].lat, g[i].lon); const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!best || l > best.l) best = { a, b, l }; }
+    const cx = (best.a[0] + best.b[0]) / 2, cy = (best.a[1] + best.b[1]) / 2; if (cx < 30 || cx > W - 30 || cy < 30 || cy > H - 30) continue; if (used.some(u => Math.hypot(u[0] - cx, u[1] - cy) < 70)) continue; used.push([cx, cy]);
+    let ang = Math.atan2(best.b[1] - best.a[1], best.b[0] - best.a[0]) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
+    const fs = best.l > n.length * 7.5 ? 15 : 12; etiket += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" transform="rotate(${ang.toFixed(1)} ${cx.toFixed(1)} ${cy.toFixed(1)})" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-family="Arial, sans-serif" fill="#111" stroke="#fff" stroke-width="3.5" paint-order="stroke">${t(n)}</text>`; }
+  const kullanilan = new Set(); const poiYer = [];
+  for (const e of el) { const tg = e.tags || {}; const tip = POI.find(x => tg[x.k] && x.re.test(tg[x.k])); if (!tip) continue;
+    let la = e.lat, lo = e.lon; if (e.type === 'way' && e.geometry) { la = e.geometry.reduce((a, b) => a + b.lat, 0) / e.geometry.length; lo = e.geometry.reduce((a, b) => a + b.lon, 0) / e.geometry.length; } if (la == null) continue;
+    const [x, y] = P(la, lo); if (x < 16 || x > W - 16 || y < 16 || y > H - 16) continue; if (Math.hypot(x - W / 2, y - H / 2) < 26) continue; if (poiYer.some(q => Math.hypot(q[0] - x, q[1] - y) < 24)) continue; poiYer.push([x, y]); kullanilan.add(tip.h);
+    poi += `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="${tip.c}" stroke="#fff" stroke-width="2"/><text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="12" font-weight="bold" font-family="Arial, sans-serif" fill="#fff">${tip.h}</text>${tg.name && tip.h !== 'D' ? `<text x="${(x + 14).toFixed(1)}" y="${y.toFixed(1)}" dominant-baseline="central" font-size="11" font-family="Arial, sans-serif" fill="${tip.c}" stroke="#fff" stroke-width="3" paint-order="stroke">${t(tg.name.length > 28 ? tg.name.slice(0, 27) + '…' : tg.name)}</text>` : ''}</g>`; }
+  const okul = `<g><circle cx="500" cy="500" r="20" fill="#dc2626" stroke="#fff" stroke-width="3"/><path d="M500 486 l4.1 8.4 9.3 1.3 -6.7 6.5 1.6 9.2 -8.3 -4.4 -8.3 4.4 1.6 -9.2 -6.7 -6.5 9.3 -1.3z" fill="#fff"/><text x="500" y="536" text-anchor="middle" font-size="17" font-weight="bold" font-family="Arial, sans-serif" fill="#dc2626" stroke="#fff" stroke-width="4" paint-order="stroke">${t(p.okul)}</text></g>`;
+  const olcekM = R >= 1000 ? 500 : R >= 500 ? 200 : 100; const olcekPx = olcekM * s;
+  const lj = POI.filter(x => kullanilan.has(x.h)); const lejant = lj.map((x, i) => `<g transform="translate(${20 + (i % 4) * 190} ${H + 26 + Math.floor(i / 4) * 26})"><circle cx="10" cy="0" r="9" fill="${x.c}"/><text x="10" y="0" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="bold" fill="#fff" font-family="Arial">${x.h}</text><text x="26" y="0" dominant-baseline="central" font-size="13" font-family="Arial" fill="#111">${x.ad}</text></g>`).join('');
+  const HB = H + 26 + Math.max(1, Math.ceil(lj.length / 4)) * 26 + 22;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${HB}" width="100%" style="max-width:100%;height:auto;background:#fff;display:block" font-family="Arial, sans-serif"><defs><clipPath id="kc"><rect width="${W}" height="${H}"/></clipPath></defs><rect width="${W}" height="${HB}" fill="#fff"/><rect width="${W}" height="${H}" fill="#f8f7f4"/><g clip-path="url(#kc)">${alan}${bina}${yolAlt}${yolUst}${etiket}${poi}${okul}</g>
+    <g transform="translate(${W - 60} 70)"><circle r="30" fill="#fff" stroke="#111" stroke-width="1.5"/><path d="M0 -24 L9 8 L0 2 L-9 8Z" fill="#111"/><text y="-36" text-anchor="middle" font-size="16" font-weight="bold">K</text></g>
+    <g transform="translate(${W - 40 - olcekPx} ${H - 26})"><rect width="${olcekPx}" height="8" fill="#fff" stroke="#111"/><rect width="${olcekPx / 2}" height="8" fill="#111"/><text x="0" y="-6" font-size="12">0</text><text x="${olcekPx}" y="-6" font-size="12" text-anchor="end">${olcekM} m</text></g>
+    <rect width="${W}" height="${H}" fill="none" stroke="#111" stroke-width="3"/>${lejant}
+    <text x="${W - 10}" y="${HB - 8}" text-anchor="end" font-size="11" fill="#555">Harita verisi © OpenStreetMap katkıda bulunanlar (ODbL)</text></svg>`;
+}
+async function krokiOlustur() {
+  const k = krGet(); if (k.lat == null) { toast('Önce haritada okulun yerini işaretleyin.'); return; }
+  const R = +k.r || 500; const st = $('#kr-st'); if (st) st.textContent = 'Sokak verisi indiriliyor…';
+  const q = `[out:json][timeout:40];(way["highway"](around:${Math.round(R * 1.45)},${k.lat},${k.lon});way["leisure"~"park|playground|pitch"](around:${R * 1.4},${k.lat},${k.lon});way["building"](around:${Math.round(R * 0.6)},${k.lat},${k.lon});nwr["amenity"~"school|kindergarten|place_of_worship|pharmacy|hospital|clinic|doctors|police|fire_station|townhall|community_centre|library"](around:${R * 1.4},${k.lat},${k.lon});node["highway"="bus_stop"](around:${R * 1.2},${k.lat},${k.lon});node["railway"~"station|halt"](around:${R * 1.4},${k.lat},${k.lon}););out geom;`;
+  try { const data = await overpass(q); const p = prof(); const svg = krokiSVG(data, k.lat, k.lon, R, p);
+    Store.put('kroki', { ...krGet(), type:'kroki', svg, tarih:Date.now(), adet:(data.elements || []).length }, true); render(); toast('Kroki oluşturuldu.'); }
+  catch (e) { if (st) st.textContent = ''; toast(e && e.code === 'net' ? 'İnternet bağlantısı gerekli. Bağlanıp tekrar deneyin.' : 'Harita verisi alınamadı (' + (e && e.code) + '). Biraz sonra tekrar deneyin.', 6000); }
+}
+function krokiBaskiHTML(p, k) { return `${baslik(p)}<h2 style="text-align:center">${esc(up(p.okul))} ÇEVRE KROKİSİ</h2><p style="text-align:center">${esc([p.ilce, p.il].filter(Boolean).join(' / '))} · Okul merkezli yaklaşık ${k.r} m yarıçap</p><div style="max-width:180mm;margin:0 auto">${k.svg}</div>${k.not ? `<p><b>Açıklama:</b> ${esc(k.not)}</p>` : ''}${imzaTablo([`…<br>Hazırlayan`, `${esc(p.mudur || '…')}<br>Okul Müdürü`])}`; }
+PAGES.kroki = () => { const k = krGet(); const p = prof(); const yuk = dosyalar().filter(f => f.klasor === 'Kroki ve Planlar');
+  return `<div><button class="btn ghost sm" data-act="open-modul" data-id="okul">${icon('back')}Okul ve Çevre</button></div>
+  <div class="pagehead"><div><h1>Okul Çevre Krokisi</h1><p>Okulun yerini haritada işaretleyin; uygulama gerçek sokak verisiyle sokak adları, cami, eczane, sağlık kuruluşu, park ve durakları gösteren, kuzey oklu ve ölçekli bir kroki çizer. Kroki bir kez oluşturulunca internetsiz de açılır.</p></div></div>
+  <section class="card"><h3>1. Okulun yeri</h3><div class="row" style="margin:8px 0;flex-wrap:nowrap"><input class="inp" id="kr-q" value="${esc(S.krQ || [p.okul, p.ilce, p.il].filter(Boolean).join(', '))}" style="flex:1"><button class="btn" data-act="kr-ara">Ara</button></div><div id="kr-sonuc"></div>
+    <div id="kr-map" style="height:340px;border-radius:8px;border:1px solid var(--line);margin-top:8px;background:var(--sunk)"></div><p class="note" style="margin-top:6px">${k.lat != null ? `İşaretli konum: ${k.lat.toFixed(5)}, ${k.lon.toFixed(5)}. ` : ''}Haritada okul binasının üstüne dokunarak işareti tam yerine taşıyın. Okul bulunamazsa mahalleyi arayın (ör. "Sultançiftliği, Çekmeköy").</p></section>
+  <section class="card"><h3>2. Kroki</h3><div class="row" style="margin:8px 0"><div class="field" style="width:170px"><label for="kr-r">Kapsama alanı</label><select class="inp" id="kr-r" data-in="kr-r">${[300, 500, 800, 1200].map(r => `<option value="${r}" ${+k.r === r ? 'selected' : ''}>yaklaşık ${r} m</option>`).join('')}</select></div><button class="btn primary" data-act="kr-olustur" style="align-self:flex-end" ${k.lat == null ? 'disabled' : ''}>${k.svg ? 'Krokiyi yeniden oluştur' : 'Krokiyi oluştur'}</button><span class="note" id="kr-st" style="align-self:flex-end"></span></div>
+    ${k.svg ? `<div style="max-width:720px;margin:10px auto;border:1px solid var(--line)">${k.svg}</div><div class="field"><label for="kr-not">Açıklama (isteğe bağlı)</label><input class="inp" id="kr-not" data-in="kr-not" value="${esc(k.not || '')}" placeholder="ör. Okul giriş kapısı Atatürk Caddesi üzerindedir."></div><div class="row" style="margin-top:10px"><button class="btn primary" data-act="kr-yazdir">Yazdır / PDF</button><button class="btn" data-act="kr-png">${icon('down')}Resim olarak indir</button></div><p class="note">Oluşturma tarihi ${fmtD(k.tarih)}. Harita verisi OpenStreetMap'ten alınır; eksik ya da eski bilgi olabilir, yazdırmadan önce kontrol edin.</p>` : '<p class="muted">Henüz kroki oluşturulmadı.</p>'}</section>
+  <section class="card"><div class="row between"><h3 style="margin:0">Okulun resmî krokileri ve planları</h3><button class="btn sm" data-act="up-open" data-k="Kroki ve Planlar">${icon('up')}Yükle</button></div><p class="note" style="margin:6px 0 10px">Okul idaresinden aldığınız bina kat krokisi, acil durum tahliye planı, toplanma alanı krokisi gibi belgeleri fotoğraf ya da PDF olarak buraya yükleyin.</p>${yuk.length ? dzListHTML(yuk) : '<p class="muted">Yüklenmiş belge yok.</p>'}</section>`; };
+function krHarita() { const el = $('#kr-map'); if (!el) return; if (typeof L === 'undefined') { el.innerHTML = '<p class="note" style="padding:12px">Harita yüklenemedi.</p>'; return; }
+  const k = krGet(); try { if (krMap) { krMap.remove(); krMap = null; } } catch (e) {}
+  const c = k.lat != null ? [k.lat, k.lon] : [41.0, 29.2]; krMap = L.map(el, { zoomControl:true }).setView(c, k.lat != null ? 17 : 10);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap katkıda bulunanlar' }).addTo(krMap);
+  const ikon = L.icon({ iconUrl:'vendor/leaflet/images/marker-icon.png', iconRetinaUrl:'vendor/leaflet/images/marker-icon-2x.png', shadowUrl:'vendor/leaflet/images/marker-shadow.png', iconSize:[25, 41], iconAnchor:[12, 41] });
+  if (k.lat != null) krMarker = L.marker(c, { icon:ikon }).addTo(krMap);
+  krMap.on('click', ev => { const ll = ev.latlng; if (krMarker) krMarker.setLatLng(ll); else krMarker = L.marker(ll, { icon:ikon }).addTo(krMap); Store.put('kroki', { ...krGet(), type:'kroki', lat:ll.lat, lon:ll.lng }, true); const b = $('[data-act="kr-olustur"]'); if (b) b.disabled = false; });
+}
+{ const _r = render; render = function () { _r(); if (S.page === 'kroki') setTimeout(krHarita, 30); else if (krMap) { try { krMap.remove(); } catch (e) {} krMap = null; krMarker = null; } }; }
+Object.assign(ACT, {
+  'kr-ara': async () => { const q = $('#kr-q').value.trim(); S.krQ = q; if (!q) return; const box = $('#kr-sonuc'); box.innerHTML = '<p class="note">Aranıyor…</p>';
+    const ara = async s => { const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=tr&accept-language=tr&q=' + encodeURIComponent(s)); return r.ok ? r.json() : []; };
+    try { let res = await ara(q); if (!res.length) { const k2 = q.replace(/\b(ortaokulu|ilkokulu|lisesi|anadolu|imam hatip)\b/gi, '').replace(/\s+,/g, ',').trim(); if (k2 !== q) res = await ara(k2); }
+      S.krRes = res; box.innerHTML = res.length ? `<div class="list">${res.map((r, i) => `<button class="li" data-act="kr-sec" data-k="${i}"><span class="t"><b>${esc(r.name || r.display_name.split(',')[0])}</b><small>${esc(r.display_name)}</small></span></button>`).join('')}</div>` : '<p class="note">Bulunamadı. Mahalle ve ilçe adıyla arayın (ör. "Sultançiftliği, Çekmeköy") ya da haritayı kaydırıp okulun üstüne dokunun.</p>'; }
+    catch (e) { box.innerHTML = '<p class="note">Arama için internet bağlantısı gerekli.</p>'; } },
+  'kr-sec': b => { const r = S.krRes[+b.dataset.k]; Store.put('kroki', { ...krGet(), type:'kroki', lat:+r.lat, lon:+r.lon }, true); render(); toast('Konum seçildi. Gerekirse haritada okulun tam üstüne dokunun.', 4000); },
+  'kr-olustur': b => { b.disabled = true; krokiOlustur().finally(() => { b.disabled = false; }); },
+  'kr-yazdir': () => printHTML('Okul Çevre Krokisi', krokiBaskiHTML(prof(), krGet())),
+  'kr-png': async () => { const k = krGet(); try { const img = new Image(); const u = URL.createObjectURL(new Blob([k.svg], { type:'image/svg+xml' })); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = u; }); const c = document.createElement('canvas'); c.width = 2000; c.height = 2000; c.getContext('2d').drawImage(img, 0, 0, 2000, 2000); URL.revokeObjectURL(u); const bl = await new Promise(r => c.toBlob(r, 'image/png')); await saveFile(safeName(prof().okul + ' cevre krokisi') + '.png', bl); } catch (e) { toast('Resim oluşturulamadı.'); } }
+});
+document.addEventListener('change', e => { const el = e.target; const k = el.dataset && el.dataset.in; if (k === 'kr-r') Store.put('kroki', { ...krGet(), type:'kroki', r:+el.value }, true); });
+document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.in === 'kr-not') Store.put('kroki', { ...krGet(), type:'kroki', not:el.value }); });
+MODS.splice(0, 0, { k:'okul', ad:'Okul ve Çevre', not:'Okul çevre krokisi, bina krokisi, acil durum tahliye planı.', dayanak:'Öğretmen dosyasında okulun çevre krokisi ve okul güvenliğine ilişkin planlar bulunur; acil durum planları okul idaresince hazırlanır.', kat:[], klasor:['Kroki ve Planlar'], tpl:[], arac:[['Okul çevre krokisi oluştur', 'nav', 'kroki']],
+  gerek:[['Okul çevre krokisi', () => !!krGet().svg], ['Bina krokisi / acil durum tahliye planı (yüklenmiş)', () => dosyalar().some(f => f.klasor === 'Kroki ve Planlar')]] });
 
 /* ===================== Başlangıç ===================== */
 async function boot() {
