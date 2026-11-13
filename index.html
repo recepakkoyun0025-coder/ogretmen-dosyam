@@ -300,6 +300,11 @@ table.t th .tp{display:block;font-weight:400;font-size:10.5px;color:var(--muted)
 .banner{border:1px solid var(--warn);background:var(--warn-soft);color:var(--ink);border-radius:var(--r);padding:10px 14px;font-size:14px}
 .note{font-size:13px;color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.dialog{animation:pop .16s ease-out}@keyframes pop{from{transform:translateY(6px);opacity:.6}to{transform:none;opacity:1}}}
+.ek-kunye{width:100%;border-collapse:collapse;margin-bottom:12px}.ek-kunye th,.ek-kunye td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;font-size:14px}.ek-kunye th{width:34%;background:var(--surface-2,rgba(0,0,0,.03));font-weight:600}
+.ek-metin h3{margin:18px 0 8px}.ek-saat{display:grid;grid-template-columns:72px 1fr;gap:10px;border-left:3px solid var(--blue);padding:8px 10px;margin:8px 0;background:var(--blue-soft);border-radius:0 8px 8px 0}.ek-sno{font-weight:700;font-family:var(--f-disp)}
+.ek-defter{border:1px dashed var(--red);border-radius:8px;padding:8px 12px;margin:8px 0}.ek-defter ol,.ek-defter ul{margin:6px 0 0;padding-left:20px}
+.ek-konu{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:8px 0}.ek-konu summary{cursor:pointer;padding:4px 0}.ek-anlat p{margin:6px 0}.ek-anlat .dikkat,.ek-metin .dikkat{border-left:3px solid var(--red);padding-left:8px}
+@media (max-width:560px){.ek-saat{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -317,6 +322,13 @@ table.t th .tp{display:block;font-weight:400;font-size:10.5px;color:var(--muted)
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/mammoth.browser.min.js"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
+<script>window.EK={sinif:{},konu:{}};</script>
+<script src="kilavuz/konular.js"></script>
+<script src="kilavuz/konular2.js"></script>
+<script src="kilavuz/konular3.js"></script>
+<script src="kilavuz/s5.js"></script>
+<script src="kilavuz/s6.js"></script>
+<script src="kilavuz/s7.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

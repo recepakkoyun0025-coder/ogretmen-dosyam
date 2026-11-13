@@ -2202,6 +2202,155 @@ document.addEventListener('input', e => { const el = e.target; if (el.dataset &&
 MODS.splice(0, 0, { k:'okul', ad:'Okul ve Çevre', not:'Okul çevre krokisi, bina krokisi, acil durum tahliye planı.', dayanak:'Öğretmen dosyasında okulun çevre krokisi ve okul güvenliğine ilişkin planlar bulunur; acil durum planları okul idaresince hazırlanır.', kat:[], klasor:['Kroki ve Planlar'], tpl:[], arac:[['Okul çevre krokisi oluştur', 'nav', 'kroki']],
   gerek:[['Okul çevre krokisi', () => !!krGet().svg], ['Bina krokisi / acil durum tahliye planı (yüklenmiş)', () => dosyalar().some(f => f.klasor === 'Kroki ve Planlar')]] });
 
+/* ===================== Öğretmen El Kitabı (5-6-7 Türkçe) ===================== */
+const EKD = () => window.EK || { sinif:{}, konu:{} };
+const ekAyar = () => Store.get('ekayar') || { type:'ekayar', ofset:{} };
+const EK_HARF = 'A-Za-zÇĞİÖŞÜçğıöşü';
+function ekSinifCoz(ders) {
+  const s = String(ders || ''); if (!s.trim()) return null;
+  const m = s.match(new RegExp(`(?:^|\\D)([5-8])(?:\\s*[-/.]?\\s*([${EK_HARF}])(?![${EK_HARF}]))?`));
+  if (!m) return null; if (!/türkçe/i.test(s) && !isTurkce()) return null;
+  const g = +m[1]; const sube = (m[2] || '').toLocaleUpperCase('tr'); return { g, sube, key:g + sube };
+}
+function ekSira(g) {
+  const d = EKD().sinif[g]; if (!d) return []; const out = []; let bas = 0;
+  d.temalar.forEach((t, ti) => t.metinler.forEach((m, mi) => { out.push({ ti, mi, t, m, bas, saat:m.saat }); bas += m.saat; }));
+  return out;
+}
+/* Okul haftası numarasından o haftanın pazartesisi */
+function ekHaftaTarih(w) { let n = 0; for (let m = dParse('2026-09-14'); m <= dParse('2027-06-25'); m.setDate(m.getDate() + 7)) { if (inTatil(m)) continue; n++; if (n === w) return new Date(m); } return null; }
+function ekSlotlar(key) { const hs = dpGet().h || {}; const out = []; for (const k in hs) { const c = ekSinifCoz(hs[k]); if (c && c.key === key) { const [g, i] = k.split('-').map(Number); out.push([g, i]); } } return out.sort((a, b) => a[0] - b[0] || a[1] - b[1]); }
+function ekSiniflarim() { const hs = dpGet().h || {}; const m = new Map(); for (const k in hs) { const c = ekSinifCoz(hs[k]); if (c && EKD().sinif[c.g]) m.set(c.key, c); } return [...m.values()].sort((a, b) => a.key.localeCompare(b.key, 'tr')); }
+function ekHaftalik(key, g) { const n = ekSlotlar(key).length; return n || (EKD().sinif[g] || {}).haftalik || 6; }
+/* Belirli bir gün ve ders saati için bu sınıfın yıl içindeki ders sırası (0'dan) */
+function ekHam(key, g, d, slot) {
+  const h = okulHaftasi(d); if (!h) return null;
+  const sl = ekSlotlar(key), per = sl.length || ekHaftalik(key, g), gun = d.getDay() - 1;
+  const once = sl.length ? sl.filter(([gg, ii]) => gg < gun || (gg === gun && ii < slot)).length : Math.max(0, Math.min(per, Math.round(gun * per / 5)));
+  return (h.w - 1) * per + once;
+}
+const ekIdx = (key, g, d, slot) => { const r = ekHam(key, g, d, slot); return r == null ? null : r + ((ekAyar().ofset || {})[key] || 0); };
+function ekBul(g, idx) { const s = ekSira(g); if (idx == null || !s.length) return null; if (idx < 0) return { once:true, x:s[0] }; const x = s.find(y => idx >= y.bas && idx < y.bas + y.saat); return x ? { x, kac:idx - x.bas + 1 } : { bitti:true, x:s[s.length - 1] }; }
+/* Metnin akışını ders saatlerine dağıt */
+function ekDagit(m) {
+  const a = m.akis || [], n = a.length, s = Math.max(1, m.saat || 1), out = [];
+  if (!n) return out;
+  if (s >= n) { for (let h = 0; h < s; h++) { const i = Math.floor(h * n / s); out.push({ adim:[a[i]], devam:h > 0 && Math.floor((h - 1) * n / s) === i }); } }
+  else for (let h = 0; h < s; h++) out.push({ adim:a.slice(Math.floor(h * n / s), Math.floor((h + 1) * n / s)), devam:false });
+  return out;
+}
+const ekPid = (g, ti, mi) => `${g}-${ti}-${mi}`;
+const ekKonuAd = id => (EKD().konu[id] || {}).ad || id;
+function ekGunNe(c, d, slot) { const i = ekIdx(c.key, c.g, d, slot); return ekBul(c.g, i); }
+
+/* Bugün kartı (Ana Sayfa ve Sınıfta) */
+function ekBugunKart() {
+  const b = bugunDersler(); const now = new Date();
+  const rows = b.list.map(x => ({ x, c:ekSinifCoz(x.ders) })).filter(r => r.c && EKD().sinif[r.c.g]);
+  if (!rows.length) return '';
+  return `<section class="card"><div class="row between"><h2 style="margin:0">Bugün ne işleyeceğim?</h2>${S.page === 'elkitabi' ? '' : '<button class="btn sm" data-act="nav" data-p="elkitabi">El Kitabı</button>'}</div>
+    <div class="list" style="margin-top:8px">${rows.map(({ x, c }) => { const r = ekGunNe(c, now, x.i); if (!r) return ''; const { ti, mi, t, m } = r.x;
+      const sub = r.once ? 'Ders yılı henüz başlamadı' : r.bitti ? 'Yıllık plan tamamlandı · tekrar ve değerlendirme' : esc(m.ad);
+      const adim = (!r.once && !r.bitti) ? `${t.no}. tema · ${r.kac}/${m.saat}. saat · ` + (ekDagit(m)[r.kac - 1] || { adim:[] }).adim.map(a => esc(a[0])).join(' · ') : '';
+      return `<button class="li" data-act="nav" data-p="ekmetin" data-pid="${ekPid(c.g, ti, mi)}" style="${x.simdi ? 'background:var(--blue-soft);border-radius:8px' : ''}"><span class="num muted" style="width:62px">${x.i + 1}. ders<br><b style="color:var(--ink)">${esc(c.key)}</b></span><span class="t"><b style="white-space:normal">${sub}</b>${adim ? `<small style="white-space:normal">${adim}</small>` : ''}</span></button>`; }).join('')}</div>
+    <p class="note" style="margin-top:6px">Plan, ders programınızdaki saatlere ve okul takvimine göre hesaplanır. Sınıfınız geride ya da ileride ise El Kitabı › Sınıflarım bölümünden düzeltin.</p></section>`;
+}
+
+/* ---- Sayfa: El Kitabı ---- */
+PAGES.elkitabi = () => {
+  const D = EKD(); const gs = Object.keys(D.sinif).map(Number).sort();
+  if (!gs.length) return `<div class="empty"><b>El kitabı verisi yüklenemedi</b><span>Sayfayı yenileyin.</span></div>`;
+  if (!S.ekG || !D.sinif[S.ekG]) { const rs = ekSinifCoz((prof().rehberSinif || '') + ' Türkçe'); S.ekG = rs && D.sinif[rs.g] ? rs.g : gs.includes(6) ? 6 : gs[0]; }
+  const g = S.ekG, d = D.sinif[g], sira = ekSira(g), now = new Date();
+  const sn = ekSiniflarim().filter(c => c.g === g);
+  const hafta = x => { const per = (sn[0] ? ekHaftalik(sn[0].key, g) : d.haftalik); const w = Math.floor(x.bas / per) + 1; const t = ekHaftaTarih(w); return t ? `${w}. hafta · ${fmtD(t)}` : 'yıl sonu'; };
+  return `${banner()}
+  <div class="pagehead"><div><h1>Öğretmen El Kitabı</h1><p>Türkçe ${gs.join(', ')}. sınıflar · ${esc(d.kitap)}. Yıllık plana göre hangi gün hangi metni, nasıl işleyeceğiniz, deftere neler yazdıracağınız ve konu anlatımları.</p></div>
+    <div class="row"><button class="btn" data-act="nav" data-p="ekkonu">${icon('elkitabi')}Konu anlatımları</button><button class="btn" data-act="ek-yillik" data-k="${g}">Yıllık planı yazdır</button></div></div>
+  <div class="chips">${gs.map(x => `<button class="chip" data-act="ek-g" data-k="${x}" aria-pressed="${x === g}">${x}. sınıf</button>`).join('')}</div>
+  ${ekBugunKart()}
+  <section class="card"><h2>Sınıflarım</h2>${sn.length ? `<div class="list">${sn.map(c => { const r = ekGunNe(c, now, 99); const nx = r && !r.once && !r.bitti ? r.x : null; const of = (ekAyar().ofset || {})[c.key] || 0;
+      return `<div class="li" style="cursor:default;flex-wrap:wrap"><span class="num" style="width:44px"><b>${esc(c.key)}</b></span><span class="t" style="min-width:180px"><b style="white-space:normal">${nx ? `${nx.t.no}. tema · ${esc(nx.m.ad)}` : r && r.bitti ? 'Plan tamamlandı' : 'Ders yılı başlamadı'}</b><small>${nx ? `Sıradaki ders bu metnin ${r.kac}. saati` : ''}${of ? ` · düzeltme ${of > 0 ? '+' : ''}${of} saat` : ''} · haftada ${ekHaftalik(c.key, g)} saat</small></span>
+        <span class="row" style="gap:4px"><button class="btn sm" data-act="ek-of" data-k="${c.key}" data-d="-1" title="Geride kaldım">− 1 saat</button><button class="btn sm" data-act="ek-of" data-k="${c.key}" data-d="1" title="İlerideyim">+ 1 saat</button>${nx ? `<button class="btn sm primary" data-act="nav" data-p="ekmetin" data-pid="${ekPid(g, nx.ti, nx.mi)}">Aç</button>` : ''}</span></div>`; }).join('')}</div>
+    <p class="note" style="margin-top:6px">Bir metnin sayfasındaki <b>"Bu metne geçtim"</b> düğmesiyle sınıfınızın yerini tek dokunuşla ayarlayabilirsiniz.</p>`
+    : `<p class="muted">Ders programınıza ${g}. sınıf Türkçe dersi girilmemiş. <button class="btn sm" data-act="st-tab" data-k="program">Ders programını gir</button> (hücreye ör. "${g}A Türkçe" yazın). Girdiğinizde bugünkü dersleriniz ve sıradaki metin otomatik görünür.</p>`}</section>
+  ${d.temalar.map((t, ti) => `<section class="card">
+    <div class="row between"><h2 style="margin:0">${t.no}. Tema: ${esc(t.ad)}</h2><span class="pill">${t.saat} ders saati · ${t.kitap}. kitap s.${esc(t.sayfa)}</span></div>
+    <p style="margin:8px 0">${esc(t.amac)}</p>
+    <details><summary class="muted" style="cursor:pointer">Öğrenme çıktıları, kavramlar, değerler</summary><ul>${t.oc.map(o => `<li>${esc(o)}</li>`).join('')}</ul><p><b>Kavramlar:</b> ${esc(t.kavram)}<br><b>Değerler:</b> ${esc(t.degerler)}<br><b>Tema ürünü:</b> ${esc(t.atolye)}</p></details>
+    <div class="list" style="margin-top:8px">${t.metinler.map((m, mi) => { const x = sira.find(y => y.ti === ti && y.mi === mi); return `<button class="li" data-act="nav" data-p="ekmetin" data-pid="${ekPid(g, ti, mi)}">${icon('file')}<span class="t"><b style="white-space:normal">${esc(m.ad)}</b><small style="white-space:normal">${esc(m.tur)} · s.${esc(m.sayfa)} · ${m.saat} saat · ${hafta(x)}</small></span></button>`; }).join('')}</div></section>`).join('')}
+  <p class="note">Etkinlik sıraları MEB ders kitabından ve yayımlanmış etkinlik cevap sayfalarından derlenmiştir; sayfa numaraları baskıya göre 1-2 sayfa kayabilir. 7. sınıf 2. kitap (4-6. temalar) akışları öğretim programına göre hazırlanmış taslaktır; kitapla karşılaştırarak kullanın.</p>`;
+};
+
+function ekMetinHTML(g, ti, mi, yaz) {
+  const D = EKD(), t = D.sinif[g].temalar[ti], m = t.metinler[mi], dag = ekDagit(m);
+  const konular = (m.konular || []).map(k => ({ k, v:D.konu[k] })).filter(x => x.v);
+  const defter = [...(m.defter || [])];
+  const konuHTML = ({ k, v }) => `<${yaz ? 'div' : 'details'} class="ek-konu" id="k-${k}">${yaz ? `<h3>${esc(v.ad)}</h3>` : `<summary><b>${esc(v.ad)}</b> <small class="muted">${esc(v.alan)}</small></summary>`}
+    <div class="ek-anlat">${v.anlatim}</div>
+    ${v.ornek.length ? `<p><b>Örnekler</b></p><ul>${v.ornek.map(o => `<li>${esc(o).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : ''}
+    ${v.defter.length ? `<div class="ek-defter"><b>✎ Deftere / tahtaya</b><ul>${v.defter.map(o => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}
+    ${v.etkinlik ? `<p><b>Sınıf içi uygulama:</b> ${esc(v.etkinlik)}</p>` : ''}</${yaz ? 'div' : 'details'}>`;
+  return `<table class="ek-kunye"><tr><th>Sınıf / tema</th><td>${g}. sınıf · ${t.no}. tema: ${esc(t.ad)}</td></tr><tr><th>Metin</th><td><b>${esc(m.ad)}</b></td></tr><tr><th>Tür</th><td>${esc(m.tur)}</td></tr><tr><th>Kitap sayfası</th><td>${t.kitap}. kitap s.${esc(m.sayfa)}</td></tr><tr><th>Süre</th><td>${m.saat} ders saati</td></tr>${konular.length ? `<tr><th>İşlenecek konular</th><td>${konular.map(x => esc(x.v.ad)).join(' · ')}</td></tr>` : ''}</table>
+  ${m.ozet ? `<h3>Metnin özeti</h3><p>${esc(m.ozet)}</p>` : ''}${m.anaFikir ? `<p><b>Ana fikir:</b> ${esc(m.anaFikir)}</p>` : ''}
+  <h3>Saat saat ders akışı</h3>
+  ${dag.map((h, i) => `<div class="ek-saat"><div class="ek-sno">${i + 1}. saat</div><div>${h.devam ? '<p class="muted" style="margin:0 0 4px">Önceki saatin devamı: etkinlik tamamlanır, cevaplar sınıfça kontrol edilir, deftere yazdırılır.</p>' : ''}${h.adim.map(a => `<p style="margin:0 0 6px"><b>${esc(a[0])}</b><br>${esc(a[1])}</p>`).join('')}</div></div>`).join('')}
+  ${defter.length ? `<h3>✎ Deftere yazdırılacaklar</h3><div class="ek-defter"><ol>${defter.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}
+  ${m.odev ? `<h3>Ödev</h3><p>${esc(m.odev)}</p>` : ''}
+  ${konular.length ? `<h3>Konu anlatımları</h3>${konular.map(konuHTML).join('')}` : ''}`;
+}
+PAGES.ekmetin = () => {
+  const [g, ti, mi] = String(S.pid || '').split('-').map(Number); const D = EKD();
+  const t = ((D.sinif[g] || {}).temalar || [])[ti]; const m = t && t.metinler[mi]; if (!m) return PAGES.elkitabi();
+  const sira = ekSira(g); const i = sira.findIndex(x => x.ti === ti && x.mi === mi); const on = sira[i - 1], son = sira[i + 1];
+  const sn = ekSiniflarim().filter(c => c.g === g);
+  return `<div class="pagehead"><div><button class="btn ghost sm" data-act="nav" data-p="elkitabi">${icon('back')}${g}. sınıf · El Kitabı</button><h1 style="margin-top:6px">${esc(m.ad)}</h1><p>${t.no}. tema: ${esc(t.ad)} · ${esc(m.tur)} · s.${esc(m.sayfa)} · ${m.saat} ders saati</p></div>
+    <div class="row"><button class="btn primary" data-act="ek-yaz" data-k="${esc(S.pid)}">Yazdır / PDF</button></div></div>
+  ${sn.length ? `<div class="row" style="margin-bottom:10px">${sn.map(c => `<button class="btn sm" data-act="ek-burada" data-k="${c.key}" data-pid="${esc(S.pid)}">${esc(c.key)}: bu metne geçtim</button>`).join('')}</div>` : ''}
+  <section class="card ek-metin">${ekMetinHTML(g, ti, mi, false)}</section>
+  <div class="row between">${on ? `<button class="btn" data-act="nav" data-p="ekmetin" data-pid="${ekPid(g, on.ti, on.mi)}">${icon('back')}${esc(on.m.ad)}</button>` : '<span></span>'}${son ? `<button class="btn" data-act="nav" data-p="ekmetin" data-pid="${ekPid(g, son.ti, son.mi)}">${esc(son.m.ad)} ›</button>` : ''}</div>`;
+};
+PAGES.ekkonu = () => {
+  const D = EKD(); const q = low(S.ekQ || '');
+  const all = Object.entries(D.konu).filter(([k, v]) => !q || low(v.ad + ' ' + v.alan + ' ' + v.anlatim.replace(/<[^>]+>/g, ' ')).includes(q));
+  const alanlar = [...new Set(all.map(([, v]) => v.alan))].sort((a, b) => a.localeCompare(b, 'tr'));
+  const nerede = k => { const out = []; for (const g in D.sinif) D.sinif[g].temalar.forEach((t, ti) => t.metinler.forEach((m, mi) => { if ((m.konular || []).includes(k)) out.push(`<button class="chip" data-act="nav" data-p="ekmetin" data-pid="${ekPid(g, ti, mi)}">${g}. sınıf · ${esc(m.ad)}</button>`); })); return out.join(''); };
+  if (S.ekK && D.konu[S.ekK]) { const v = D.konu[S.ekK]; const k = S.ekK;
+    return `<div class="pagehead"><div><button class="btn ghost sm" data-act="ek-k" data-k="">${icon('back')}Konu anlatımları</button><h1 style="margin-top:6px">${esc(v.ad)}</h1><p>${esc(v.alan)}</p></div><div class="row"><button class="btn primary" data-act="ek-kyaz" data-k="${k}">Yazdır / PDF</button></div></div>
+    <section class="card ek-metin"><div class="ek-anlat">${v.anlatim}</div>${v.ornek.length ? `<h3>Örnekler</h3><ul>${v.ornek.map(o => `<li>${esc(o).replace(/\n/g, '<br>')}</li>`).join('')}</ul>` : ''}${v.defter.length ? `<h3>✎ Deftere / tahtaya</h3><div class="ek-defter"><ul>${v.defter.map(o => `<li>${esc(o)}</li>`).join('')}</ul></div>` : ''}${v.etkinlik ? `<h3>Sınıf içi uygulama</h3><p>${esc(v.etkinlik)}</p>` : ''}</section>
+    <section class="card"><h2>Bu konunun geçtiği metinler</h2><div class="chips">${nerede(k) || '<span class="muted">—</span>'}</div></section>`; }
+  return `<div class="pagehead"><div><button class="btn ghost sm" data-act="nav" data-p="elkitabi">${icon('back')}El Kitabı</button><h1 style="margin-top:6px">Konu anlatımları</h1><p>${Object.keys(D.konu).length} konu: dil bilgisi, ses bilgisi, yazım ve noktalama, söz varlığı, anlam bilgisi, söz sanatları, metin türleri, konuşma ve yazma. Her konuda anlatım, örnekler, deftere yazdırılacaklar ve sınıf içi uygulama var.</p></div></div>
+  <div class="field" style="margin-bottom:10px"><input class="inp" id="ek-q" data-in="ek-q" value="${esc(S.ekQ || '')}" placeholder="Konu ara (ör. virgül, benzetme, ünsüz)"></div>
+  ${alanlar.map(a => `<section class="card"><h2>${esc(a)}</h2><div class="grid g3">${all.filter(([, v]) => v.alan === a).map(([k, v]) => `<button class="tpl" data-act="ek-k" data-k="${k}"><b>${esc(v.ad)}</b><small>${esc((v.defter[0] || '').slice(0, 110))}</small></button>`).join('')}</div></section>`).join('') || '<p class="muted">Sonuç yok.</p>'}`;
+};
+function ekYillikHTML(g) {
+  const D = EKD(), d = D.sinif[g], p = prof(), sn = ekSiniflarim().filter(c => c.g === g), per = sn[0] ? ekHaftalik(sn[0].key, g) : d.haftalik;
+  const rows = ekSira(g).map(x => { const w1 = Math.floor(x.bas / per) + 1, w2 = Math.floor((x.bas + x.saat - 1) / per) + 1; const t1 = ekHaftaTarih(w1), t2 = ekHaftaTarih(w2);
+    return `<tr><td>${x.t.no}. ${esc(x.t.ad)}</td><td>${w1 === w2 ? w1 : w1 + '–' + w2}</td><td>${t1 ? fmtD(t1) : '—'}${t2 && w2 !== w1 ? ' – ' + fmtD(new Date(t2.getTime() + 4 * 864e5)) : ''}</td><td>${esc(x.m.ad)}<br><small>${esc(x.m.tur)} · s.${esc(x.m.sayfa)}</small></td><td>${x.saat}</td><td>${(x.m.konular || []).map(ekKonuAd).map(esc).join(', ')}</td></tr>`; }).join('');
+  return `${baslik(p)}<h2 style="text-align:center">${yilT(p)}<br>${g}. SINIF TÜRKÇE DERSİ METİN DAĞILIM PLANI</h2><p style="text-align:center">Haftalık ${per} ders saati · ${esc(d.kitap)}</p>
+  <table><tr><th>Tema</th><th>Hafta</th><th>Tarih</th><th>Metin</th><th>Saat</th><th>İşlenecek konular</th></tr>${rows}</table>
+  <p style="font-size:10pt">Tatil haftaları (ara tatiller, yarıyıl) atlanmıştır. Resmî bayram günlerine denk gelen dersler için zümre kararına göre düzenleme yapılır.</p>${imzaBen(p)}`;
+}
+Object.assign(ACT, {
+  'ek-g': b => { S.ekG = +b.dataset.k; render(); },
+  'ek-k': b => { S.ekK = b.dataset.k || null; if (S.page !== 'ekkonu') go('ekkonu'); else { render(); window.scrollTo(0, 0); } },
+  'ek-of': b => { const a = ekAyar(); a.ofset = { ...(a.ofset || {}) }; a.ofset[b.dataset.k] = (a.ofset[b.dataset.k] || 0) + +b.dataset.d; Store.put('ekayar', a, true); render(); },
+  'ek-burada': b => { const [g, ti, mi] = b.dataset.pid.split('-').map(Number); const x = ekSira(g).find(y => y.ti === ti && y.mi === mi); const c = ekSinifCoz(b.dataset.k + ' Türkçe'); if (!x || !c) return;
+    const now = new Date(); const bd = bugunDersler(now); const sl = bd.list.find(l => { const cc = ekSinifCoz(l.ders); return cc && cc.key === c.key && !l.gecti; }); const ham = ekHam(c.key, g, now, sl ? sl.i : 99);
+    if (ham == null) { toast('Ders yılı dışında ayarlanamaz.'); return; }
+    const a = ekAyar(); a.ofset = { ...(a.ofset || {}), [c.key]:x.bas - ham }; Store.put('ekayar', a, true); toast(`${c.key}: sıradaki ders "${x.m.ad}" metninin 1. saati olarak ayarlandı.`, 4000); render(); },
+  'ek-yaz': b => { const [g, ti, mi] = b.dataset.k.split('-').map(Number); const m = EKD().sinif[g].temalar[ti].metinler[mi]; printHTML(`${g}. sınıf · ${m.ad} · Ders Akışı`, `<h2 style="text-align:center">${g}. SINIF TÜRKÇE · ${esc(up(m.ad))}</h2>${ekMetinHTML(g, ti, mi, true)}`); },
+  'ek-kyaz': b => { const v = EKD().konu[b.dataset.k]; if (!v) return; printHTML(v.ad, `<h2>${esc(v.ad)}</h2>${v.anlatim}${v.ornek.length ? `<h3>Örnekler</h3><ul>${v.ornek.map(o => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}${v.defter.length ? `<h3>Deftere</h3><ul>${v.defter.map(o => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}${v.etkinlik ? `<h3>Sınıf içi uygulama</h3><p>${esc(v.etkinlik)}</p>` : ''}`); },
+  'ek-yillik': b => { const g = +b.dataset.k; printHTML(`${g}. sınıf Türkçe metin dağılım planı`, ekYillikHTML(g)); }
+});
+{ const _nav = ACT['nav']; ACT['nav'] = b => { if (b.dataset.pid) { S.ekK = null; go(b.dataset.p, b.dataset.pid); } else _nav(b); }; }
+document.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.in === 'ek-q') { S.ekQ = el.value; const pos = el.selectionStart; render(); const n = $('#ek-q'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (er) {} } } });
+IC.elkitabi = '<path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/><path d="M6.5 8h2.5M6.5 11h2.5M15 8h2.5M15 11h2.5"/>';
+NAV.splice(NAV.findIndex(x => x[0] === 'sinifta') + 1, 0, ['elkitabi', 'El Kitabı']);
+{ const _mn = markNav; markNav = function () { _mn(); if (['ekmetin', 'ekkonu'].includes(S.page)) $$('[data-act="nav"][data-p="elkitabi"]').forEach(b => b.setAttribute('aria-current', 'page')); }; }
+{ const _bk = bugunKart; bugunKart = function () { return _bk() + ekBugunKart(); }; }
+{ const _st = PAGES.sinifta; PAGES.sinifta = () => { const h = _st(); return (S.stTab || 'bugun') === 'bugun' ? h + ekBugunKart() : h; }; }
+
 /* ===================== Başlangıç ===================== */
 async function boot() {
   try { await IDB.open(); Store.items = new Map(await IDB.all('items')); }
