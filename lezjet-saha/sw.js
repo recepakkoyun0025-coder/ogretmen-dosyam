@@ -1,5 +1,5 @@
 /* LezJet Saha – çevrimdışı çalışma için önbellek */
-const VERSION = "lezjet-saha-v1";
+const VERSION = "lezjet-saha-v2";
 const SHELL = ["./", "index.html", "app.css", "app.js", "data.js", "config.js", "manifest.json",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
