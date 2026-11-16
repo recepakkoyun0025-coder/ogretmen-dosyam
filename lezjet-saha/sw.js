@@ -1,5 +1,5 @@
 /* LezJet Saha – çevrimdışı çalışma için önbellek */
-const VERSION = "lezjet-saha-v2";
+const VERSION = "lezjet-saha-v3";
 const SHELL = ["./", "index.html", "app.css", "app.js", "data.js", "config.js", "manifest.json",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
@@ -17,7 +17,7 @@ self.addEventListener("fetch", e => {
   if (url.hostname.endsWith("google.com") || url.hostname.endsWith("googleusercontent.com")) return;
   // Uygulama dosyaları: önce ağ, olmazsa önbellek (güncellemeler hemen gelsin)
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; })
       .catch(() => caches.match(req).then(r => r || caches.match("index.html"))));
     return;
   }
