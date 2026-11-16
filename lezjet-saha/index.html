@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LezJet Saha</title>
+<meta name="theme-color" content="#e8462c">
+<meta name="description" content="LezJet saha ziyaret uygulaması">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LezJet Saha">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="logo"><span class="mark">L</span>LezJet Saha</div>
+  <div class="who"><div class="n" id="whoName"></div><div class="s"><span class="dot" id="syncDot"></span><span id="syncText">Hazır</span></div></div>
+  <button class="iconbtn" id="menuBtn" aria-label="Menü"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</header>
+
+<main>
+  <div id="offlineBanner" class="banner hidden">
+    <span>İnternet yok. Kayıtların telefonda saklanıyor, bağlantı gelince kendiliğinden gönderilecek.</span>
+  </div>
+  <div id="configBanner" class="banner hidden" style="background:var(--warn-soft);color:#6b4610">
+    <span>Uygulama henüz Google Tablosuna bağlanmadı. Kayıtlar telefonda bekletiliyor.</span>
+  </div>
+
+  <!-- İLK AÇILIŞ -->
+  <section id="vSetup" class="view hidden">
+    <div class="card hero">
+      <h1>Hoş geldin 👋</h1>
+      <p class="muted" style="margin:0">LezJet saha uygulaması. Ziyaretlerini buraya gir; hepsi merkeze düşer.</p>
+    </div>
+    <div class="card">
+      <label for="setupName">Ad Soyad</label>
+      <input id="setupName" autocomplete="name" placeholder="Örn. Ahmet Yılmaz">
+      <label for="setupPhone">Telefonun</label>
+      <input id="setupPhone" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx">
+      <div class="spacer"></div>
+      <button class="btn block" id="setupSave">Başla</button>
+    </div>
+  </section>
+
+  <!-- BUGÜN -->
+  <section id="vToday" class="view hidden">
+    <div id="installBanner" class="banner hidden">
+      <span style="flex:1">Uygulamayı telefonuna kur, ana ekrandan aç.</span>
+      <button class="btn small" id="installBtn">Kur</button>
+    </div>
+    <div class="card hero">
+      <div class="muted small" id="todayDate"></div>
+      <h1 id="hello">Merhaba</h1>
+      <div class="stat">
+        <div><b id="stTotal">0</b>ziyaret</div>
+        <div><b id="stPos">0</b>olumlu</div>
+        <div><b id="stReg">0</b>kayıt</div>
+        <div><b id="stFollow">0</b>takip bugün</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="sec-title"><h3>Bugünkü hedef</h3></div>
+      <div id="goals"></div>
+      <div class="spacer"></div>
+      <button class="btn dark block" id="dayCloseBtn">Günü kapat ve rapor gönder</button>
+    </div>
+    <div class="card">
+      <div class="sec-title"><h3>Rota</h3><span class="muted xs" id="rotaInfo" style="margin-left:auto"></span></div>
+      <div class="seg" id="daySeg"></div>
+      <p class="small" style="margin:10px 0 0"><b id="rotaTitle"></b><br><span class="muted" id="rotaHat"></span></p>
+      <p class="xs muted" style="margin:6px 0 0">Listedekiler örnektir; kendi bulduğun yerleri de ziyaret et.</p>
+      <div class="spacer"></div>
+      <div class="seg" id="rotaFilter">
+        <button data-k="" class="on">Hepsi</button><button data-k="Site yönetimi">Site</button><button data-k="Muhtarlık">Muhtarlık</button><button data-k="Okul">Okul</button>
+      </div>
+      <div id="rotaList"></div>
+    </div>
+  </section>
+
+  <!-- ZİYARET FORMU -->
+  <section id="vForm" class="view hidden">
+    <form id="visitForm" autocomplete="off" novalidate>
+      <div class="card">
+        <div class="sec-title"><span class="num">1</span><h3 id="formTitle">Yeni ziyaret</h3>
+          <button type="button" class="btn tiny ghost hidden" id="cancelEdit" style="margin-left:auto">Vazgeç</button></div>
+        <div id="rotaTag" class="badge b-info hidden" style="margin-bottom:6px"></div>
+        <label>Ziyaret türü</label>
+        <div class="chips big" id="f_tur"></div>
+        <div class="row">
+          <div><label for="f_ilce">İlçe</label><select id="f_ilce"></select></div>
+          <div><label for="f_mahalle">Mahalle</label><select id="f_mahalle"></select><input id="f_mahalle_txt" class="hidden" placeholder="Mahalle"></div>
+        </div>
+        <label for="f_cadde">Cadde / sokak</label>
+        <input id="f_cadde" placeholder="Örn. Atatürk Cad.">
+        <label>Konum</label>
+        <div class="geo" id="geoBox">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          <span class="g" id="geoText">Konum alınmadı</span>
+          <button type="button" class="btn tiny ghost" id="geoBtn">Konumu al</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title"><span class="num">2</span><h3>Kiminle görüştün</h3></div>
+        <label for="f_ad" id="lblAd">İşletme adı</label>
+        <input id="f_ad" placeholder="İşletme / site / kurum adı">
+        <div class="row">
+          <div><label for="f_yetkili">Görüşülen kişi</label><input id="f_yetkili" placeholder="Ad Soyad"></div>
+          <div><label for="f_gorev">Görevi</label><input id="f_gorev" placeholder="Sahibi, müdür…"></div>
+        </div>
+        <div class="row">
+          <div><label for="f_tel">Telefon</label><input id="f_tel" inputmode="tel" placeholder="05xx…"></div>
+          <div><label for="f_sosyal">Instagram / web</label><input id="f_sosyal" placeholder="@hesap"></div>
+        </div>
+        <label for="f_adres">Açık adres / tarif</label>
+        <input id="f_adres" placeholder="No, yakın nokta">
+        <label>Bölgenin gelir düzeyi</label>
+        <div class="chips" id="f_gelir"></div>
+        <label>Fotoğraf (tabela, vitrin, menü)</label>
+        <div class="photos" id="photoList"></div>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
+      </div>
+
+      <!-- Esnaf -->
+      <div class="card q q-esnaf">
+        <div class="sec-title"><span class="num">3</span><h3>Esnaf soruları</h3></div>
+        <label>İşletme türü</label><div class="chips" id="f_kategori"></div>
+        <label>Görüşülen kişi karar verici mi?</label><div class="chips" id="f_kararVerici"></div>
+        <label>Paket servis yapıyor mu?</label><div class="chips" id="f_paket"></div>
+        <label>Kendi kuryesi var mı?</label><div class="chips" id="f_kurye"></div>
+        <label>Şu an hangi kanallardan sipariş alıyor?</label><div class="chips" id="f_platform"></div>
+        <div class="row3">
+          <div><label for="f_komisyon">Komisyon %</label><input id="f_komisyon" inputmode="decimal" placeholder="25"></div>
+          <div><label for="f_gunluk">Günlük sipariş</label><input id="f_gunluk" inputmode="numeric" placeholder="30"></div>
+          <div><label for="f_sepet">Ort. sepet ₺</label><input id="f_sepet" inputmode="numeric" placeholder="250"></div>
+        </div>
+        <label for="f_saatler">Çalışma saatleri</label><input id="f_saatler" placeholder="Örn. 10:00–23:00">
+        <label>En büyük sıkıntısı</label><div class="chips" id="f_sorun"></div>
+        <label>İtirazı / çekincesi</label><div class="chips" id="f_itiraz"></div>
+        <label>Kendi online mağazası / sitesi var mı?</label><div class="chips" id="f_magaza"></div>
+      </div>
+
+      <!-- Site / plaza -->
+      <div class="card q q-site">
+        <div class="sec-title"><span class="num">3</span><h3>Site / plaza soruları</h3></div>
+        <div class="row3">
+          <div><label for="f_daire">Daire / çalışan</label><input id="f_daire" inputmode="numeric"></div>
+          <div><label for="f_blok">Blok</label><input id="f_blok" inputmode="numeric"></div>
+          <div><label for="f_aidat">Aidat ₺</label><input id="f_aidat" inputmode="numeric"></div>
+        </div>
+        <label for="f_firma">Yönetim firması</label><input id="f_firma" placeholder="Varsa firma adı">
+        <label>Sakinlerin WhatsApp grubu var mı?</label><div class="chips" id="f_wp"></div>
+        <label>Pano / grup duyuru izni</label><div class="chips" id="f_duyuru"></div>
+        <label>Kurye site içine girebiliyor mu?</label><div class="chips" id="f_kuryeGiris"></div>
+        <label>Kararı kim verir?</label><div class="chips" id="f_karar"></div>
+        <label>Siteye ayrılacak pay konuşuldu mu?</label><div class="chips" id="f_pay"></div>
+        <label for="f_ikinci">İkinci görüşme</label><input id="f_ikinci" type="date">
+      </div>
+
+      <!-- Okul -->
+      <div class="card q q-okul">
+        <div class="sec-title"><span class="num">3</span><h3>Okul soruları</h3></div>
+        <label>Görüşülen</label><div class="chips" id="f_okulkisi"></div>
+        <label for="f_oab">OAB başkanı (ad / telefon)</label><input id="f_oab">
+        <div class="row">
+          <div><label for="f_ogrenci">Öğrenci sayısı</label><input id="f_ogrenci" inputmode="numeric"></div>
+          <div><label for="f_kermes">Kermes / etkinlik</label><input id="f_kermes" placeholder="Tarih / not"></div>
+        </div>
+        <label>İlçe MEM izni</label><div class="chips" id="f_mem"></div>
+      </div>
+
+      <!-- Muhtarlık -->
+      <div class="card q q-muhtar">
+        <div class="sec-title"><span class="num">3</span><h3>Muhtarlık</h3></div>
+        <label for="f_oneri">Önerdiği esnaf / siteler</label><textarea id="f_oneri" placeholder="İsimler, yerler"></textarea>
+        <label>Tanıştırma sözü verdi mi?</label><div class="chips" id="f_tanistirma"></div>
+        <label>Mahallenin WhatsApp grubu var mı?</label><div class="chips" id="f_mahalleWp"></div>
+      </div>
+
+      <!-- Sonuç -->
+      <div class="card">
+        <div class="sec-title"><span class="num">4</span><h3>Sonuç</h3></div>
+        <label>Tanıtım ekranı gösterildi mi?</label><div class="chips" id="f_tanitim"></div>
+        <label>İlgi düzeyi</label><div class="stars" id="f_ilgi"></div>
+        <label>Ziyaret sonucu</label><div class="chips big" id="f_sonuc"></div>
+        <div class="row">
+          <div><label for="f_takip">Takip tarihi</label><input id="f_takip" type="date"></div>
+          <div><label for="f_takipNot">Takipte ne yapılacak</label><input id="f_takipNot" placeholder="Menü alınacak…"></div>
+        </div>
+        <label for="f_not">Notlar</label>
+        <div class="with-mic"><textarea id="f_not" placeholder="Ne dedi, ne istedi, itirazı ne…"></textarea>
+          <button type="button" class="mic hidden" id="micBtn" aria-label="Sesle not"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></div>
+      </div>
+      <div class="sticky-save"><button class="btn block" type="submit" id="saveBtn">Ziyareti kaydet</button></div>
+    </form>
+  </section>
+
+  <!-- TANITIM -->
+  <section id="vPromo" class="view hidden">
+    <div id="slideBox"></div>
+    <div class="dots" id="dots"></div>
+    <div class="row">
+      <button class="btn ghost" id="prevSlide">‹ Geri</button>
+      <button class="btn" id="nextSlide">İleri ›</button>
+    </div>
+    <p class="muted small" style="text-align:center;margin-top:10px">Telefonu esnafa çevir, ekranları birlikte geçin. Kaydırarak da geçebilirsin.</p>
+  </section>
+
+  <!-- KAYITLARIM -->
+  <section id="vMine" class="view hidden">
+    <div class="card">
+      <div class="sec-title"><h3>Kayıtlarım</h3><span class="muted xs" id="mineCount" style="margin-left:auto"></span></div>
+      <div class="seg" id="mineSeg">
+        <button data-k="bugun" class="on">Bugün</button><button data-k="takip">Takip</button><button data-k="bekleyen">Gönderilmeyen</button><button data-k="hepsi">Hepsi</button>
+      </div>
+      <div class="spacer"></div>
+      <input id="mineSearch" placeholder="Ara: isim, cadde, not…">
+      <div id="mineList"></div>
+    </div>
+  </section>
+
+  <!-- YÖNETİM -->
+  <section id="vAdmin" class="view hidden">
+    <div class="card" id="loginCard">
+      <h2>Yönetim girişi</h2>
+      <p class="muted small" style="margin-top:0">Bu bölüm sadece LezJet yönetimi içindir.</p>
+      <label for="a_pw">Şifre</label>
+      <input id="a_pw" type="password" autocomplete="current-password">
+      <div class="spacer"></div>
+      <button class="btn block" id="a_login">Raporu aç</button>
+      <details style="margin-top:14px"><summary class="small muted">Sunucu ayarı</summary>
+        <label for="a_api">Google Apps Script web uygulaması adresi</label>
+        <input id="a_api" placeholder="https://script.google.com/macros/s/…/exec">
+        <div class="spacer"></div>
+        <button class="btn small ghost" id="a_apiSave">Bu telefonda kaydet</button>
+      </details>
+    </div>
+
+    <div id="adminBody" class="hidden">
+      <div class="card">
+        <div class="sec-title"><h3>Filtreler</h3>
+          <span style="margin-left:auto;display:flex;gap:6px"><button class="btn tiny ghost" id="a_refresh">Yenile</button><button class="btn tiny ghost" id="a_logout">Çıkış</button></span></div>
+        <div class="seg" id="a_range">
+          <button data-r="today">Bugün</button><button data-r="week" class="on">Bu hafta</button><button data-r="month">Bu ay</button><button data-r="all">Tümü</button>
+        </div>
+        <div class="row">
+          <div><label for="a_from">Başlangıç</label><input type="date" id="a_from"></div>
+          <div><label for="a_to">Bitiş</label><input type="date" id="a_to"></div>
+        </div>
+        <div class="row">
+          <div><label for="a_staff">Eleman</label><select id="a_staff"></select></div>
+          <div><label for="a_ilce">İlçe</label><select id="a_ilce"></select></div>
+        </div>
+        <div class="row">
+          <div><label for="a_mahalle">Mahalle</label><select id="a_mahalle"></select></div>
+          <div><label for="a_tur">Tür</label><select id="a_tur"></select></div>
+        </div>
+        <div class="row">
+          <div><label for="a_sonuc">Sonuç</label><select id="a_sonuc"></select></div>
+          <div><label for="a_q">Ara</label><input id="a_q" placeholder="İsim, not, cadde…"></div>
+        </div>
+        <p class="xs muted" id="a_status" style="margin:10px 0 0"></p>
+      </div>
+
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card"><h3>Dönüşüm hunisi</h3><div class="funnel" id="funnel"></div></div>
+      <div class="card"><h3>Harita</h3><div id="map"></div>
+        <div class="legend" id="legend"></div><p class="xs muted" id="mapNote"></p></div>
+      <div class="card"><h3>Elemanlar</h3><div class="scroll" style="max-height:340px" id="byStaff"></div></div>
+      <div class="card"><h3>Sonuçlar</h3><div id="bySonuc"></div></div>
+      <div class="card"><h3>Ziyaret türleri</h3><div id="byTur"></div></div>
+      <div class="card"><h3>Mahalleler</h3><div class="scroll" style="max-height:360px" id="byMahalle"></div></div>
+      <div class="card"><h3>Esnaf: kullandığı kanallar</h3><div id="byPlatform"></div></div>
+      <div class="card"><h3>Esnaf: sıkıntılar</h3><div id="bySorun"></div><p class="small" id="esnafAvg" style="margin:10px 0 0"></p></div>
+      <div class="card"><h3>Esnaf: itirazlar</h3><div id="byItiraz"></div></div>
+      <div class="card"><h3>Esnaf: işletme türleri</h3><div id="byKategori"></div></div>
+      <div class="card"><h3>Günlere göre</h3><div id="byDay"></div></div>
+      <div class="card"><h3>Takip listesi</h3><div class="scroll" style="max-height:380px" id="followList"></div></div>
+      <div class="card"><h3>Gün sonu notları</h3><div class="scroll" style="max-height:340px" id="dayNotes"></div></div>
+      <div class="card">
+        <div class="sec-title"><h3>Tüm ziyaretler</h3><span class="muted xs" id="rowCount"></span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn small" id="csvBtn">Excel için indir (CSV)</button>
+          <a class="btn small ghost" id="sheetLink" href="#" target="_blank" rel="noopener">Google Tabloyu aç</a>
+        </div>
+        <div class="scroll"><table class="data" id="dataTable"></table></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs" id="tabs">
+  <button data-v="vToday"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Bugün</button>
+  <button data-v="vPromo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Tanıtım</button>
+  <button data-v="vForm" class="plus"><span class="c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>Ziyaret</button>
+  <button data-v="vMine"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Kayıtlarım</button>
+  <button data-v="menu" id="tabMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Diğer</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+<div id="modalRoot"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
